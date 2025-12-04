@@ -387,20 +387,34 @@ function navigateToHash(hash, addToHistory = true) {
         ];
         if (openFormBtn) openFormBtn.style.display = "none";
         loadTaskManagerTable(1);
-    } else if (module === "user-management") {
+    } else if (module === "settings") {
         navModules.forEach(nav => nav.classList.remove("active"));
-        const userModule = document.querySelector('.nav-module[data-module="user-management"]');
-        if (userModule) userModule.classList.add("active");
+        const settingsModule = document.querySelector('.nav-module[data-module="settings"]');
+        if (settingsModule) settingsModule.classList.add("active");
         if (pmsSubmenu) pmsSubmenu.style.display = "none";
         
-        document.getElementById("userManagementPage")?.classList.add("active");
-        title = "User Management";
-        breadcrumbPath = [
-            { label: "User Management", hash: "#user-management" },
-            { label: "Users" }
-        ];
+        if (page === "user-management") {
+            document.getElementById("userManagementPage")?.classList.add("active");
+            title = "User Management";
+            breadcrumbPath = [
+                { label: "Settings", hash: "#settings" },
+                { label: "User Management" }
+            ];
+            checkAdminAndLoadUsers();
+        } else {
+            document.getElementById("settingsPage")?.classList.add("active");
+            title = "Settings";
+            breadcrumbPath = [
+                { label: "Settings", hash: "#settings" },
+                { label: "Dashboard" }
+            ];
+            loadSettingsPageData();
+        }
         if (openFormBtn) openFormBtn.style.display = "none";
-        checkAdminAndLoadUsers();
+    } else if (module === "user-management") {
+        // Legacy route - redirect to settings/user-management
+        navigateToHash("#settings/user-management", addToHistory);
+        return;
     }
     
     // Update UI
@@ -552,8 +566,8 @@ function initializeNavigation() {
                 navigateToHash("#pms/dashboard", true);
             } else if (targetModule === "task-manager") {
                 navigateToHash("#task-manager", true);
-            } else if (targetModule === "user-management") {
-                navigateToHash("#user-management", true);
+            } else if (targetModule === "settings") {
+                navigateToHash("#settings", true);
             }
             
             // Close sidebar on mobile after navigation
@@ -6468,24 +6482,24 @@ async function isCurrentUserAdmin() {
     }
 }
 
-// Check admin status and show/hide user management menu
+// Check admin status and show/hide settings menu (admin only)
 async function checkAdminStatus() {
     try {
         const isAdmin = await isCurrentUserAdmin();
-        const userManagementNavItem = document.getElementById("userManagementNavItem"); // Get parent <li> element
-        const userManagementNav = document.getElementById("userManagementNav");
+        const settingsNavItem = document.getElementById("settingsNavItem"); // Get parent <li> element
+        const settingsNav = document.getElementById("settingsNav");
         
-        console.log("Admin status check:", { isAdmin, hasNavItem: !!userManagementNavItem, hasNav: !!userManagementNav });
+        console.log("Admin status check:", { isAdmin, hasNavItem: !!settingsNavItem, hasNav: !!settingsNav });
         
-        if (userManagementNavItem) {
+        if (settingsNavItem) {
             if (isAdmin) {
-                userManagementNavItem.style.display = "block";
+                settingsNavItem.style.display = "block";
             } else {
-                userManagementNavItem.style.display = "none";
+                settingsNavItem.style.display = "none";
             }
-        } else if (userManagementNav) {
+        } else if (settingsNav) {
             // Fallback if navItem doesn't exist
-            userManagementNav.style.display = isAdmin ? "flex" : "none";
+            settingsNav.style.display = isAdmin ? "flex" : "none";
         }
         
         return isAdmin;
@@ -7150,9 +7164,11 @@ if (window.supabase && window.supabase.auth) {
     window.supabase.auth.onAuthStateChange(async (event, session) => {
         if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') {
             await checkAdminStatus();
+            // Load app settings on login
+            await loadAppSettings();
         } else if (event === 'SIGNED_OUT') {
-            const userManagementNavItem = document.getElementById("userManagementNavItem");
-            if (userManagementNavItem) userManagementNavItem.style.display = "none";
+            const settingsNavItem = document.getElementById("settingsNavItem");
+            if (settingsNavItem) settingsNavItem.style.display = "none";
         }
     });
 }
@@ -7558,4 +7574,460 @@ document.addEventListener("DOMContentLoaded", () => {
             loadTaskManagerTable(1);
         });
     }
+
+    // Initialize Settings page functionality
+    initializeSettingsPage();
+});
+
+// ============================================
+// APP CUSTOMIZATION & SETTINGS PAGE
+// ============================================
+
+// Default app settings
+const defaultAppSettings = {
+    app_name: 'DMS',
+    app_full_name: 'Dhananjay Manufacturing System',
+    app_logo_url: null
+};
+
+// Current app settings (loaded from DB or defaults)
+let currentAppSettings = { ...defaultAppSettings };
+
+// Load app settings from database
+async function loadAppSettings() {
+    try {
+        const { data, error } = await window.supabase
+            .from('app_settings')
+            .select('*')
+            .eq('id', 1)
+            .single();
+        
+        if (error && error.code !== 'PGRST116') {
+            console.warn('Error loading app settings:', error);
+        }
+        
+        if (data) {
+            currentAppSettings = {
+                app_name: data.app_name || defaultAppSettings.app_name,
+                app_full_name: data.app_full_name || defaultAppSettings.app_full_name,
+                app_logo_url: data.app_logo_url || null
+            };
+        }
+        
+        // Apply settings to UI
+        applyAppSettings();
+        return currentAppSettings;
+    } catch (err) {
+        console.warn('App settings table may not exist:', err);
+        applyAppSettings();
+        return currentAppSettings;
+    }
+}
+
+// Apply app settings to all UI elements
+function applyAppSettings() {
+    const { app_name, app_full_name, app_logo_url } = currentAppSettings;
+    
+    // Update document title
+    document.title = `${app_name} - ${app_full_name}`;
+    
+    // Update sidebar
+    const appNameEl = document.getElementById('appName');
+    if (appNameEl) appNameEl.textContent = app_name;
+    
+    // Update sidebar logo
+    const appLogoImg = document.getElementById('appLogoImg');
+    const appLogoDefault = document.getElementById('appLogoDefault');
+    if (app_logo_url) {
+        if (appLogoImg) {
+            appLogoImg.src = app_logo_url;
+            appLogoImg.style.display = 'block';
+        }
+        if (appLogoDefault) appLogoDefault.style.display = 'none';
+    } else {
+        if (appLogoImg) appLogoImg.style.display = 'none';
+        if (appLogoDefault) {
+            appLogoDefault.style.display = 'flex';
+            appLogoDefault.innerHTML = app_name.substring(0, 3).split('').map(l => 
+                `<span class="logo-letter">${l}</span>`
+            ).join('');
+        }
+    }
+    
+    // Update header logo
+    const headerLogoImg = document.getElementById('headerLogoImg');
+    const headerLogoDefault = document.getElementById('headerLogoDefault');
+    if (app_logo_url) {
+        if (headerLogoImg) {
+            headerLogoImg.src = app_logo_url;
+            headerLogoImg.style.display = 'block';
+        }
+        if (headerLogoDefault) headerLogoDefault.style.display = 'none';
+    } else {
+        if (headerLogoImg) headerLogoImg.style.display = 'none';
+        if (headerLogoDefault) {
+            headerLogoDefault.style.display = 'flex';
+            headerLogoDefault.textContent = app_name.substring(0, 3);
+        }
+    }
+    
+    // Update login page
+    const loginAppName = document.getElementById('loginAppName');
+    const loginAppFullName = document.getElementById('loginAppFullName');
+    const loginLogoImg = document.getElementById('loginLogoImg');
+    const loginLogoDefault = document.getElementById('loginLogoDefault');
+    
+    if (loginAppName) loginAppName.textContent = app_name;
+    if (loginAppFullName) loginAppFullName.textContent = app_full_name;
+    
+    if (app_logo_url) {
+        if (loginLogoImg) {
+            loginLogoImg.src = app_logo_url;
+            loginLogoImg.style.display = 'block';
+        }
+        if (loginLogoDefault) loginLogoDefault.style.display = 'none';
+    } else {
+        if (loginLogoImg) loginLogoImg.style.display = 'none';
+        if (loginLogoDefault) {
+            loginLogoDefault.style.display = 'flex';
+            loginLogoDefault.innerHTML = app_name.substring(0, 3).split('').map(l => 
+                `<span class="login-logo-letter">${l}</span>`
+            ).join('');
+        }
+    }
+}
+
+// Update preview in settings page
+function updateAppPreview() {
+    const appNameInput = document.getElementById('customAppName');
+    const appFullNameInput = document.getElementById('customAppFullName');
+    const previewAppName = document.getElementById('previewAppName');
+    const previewAppFullName = document.getElementById('previewAppFullName');
+    const previewLogoDefault = document.getElementById('previewLogoDefault');
+    
+    const name = appNameInput?.value || currentAppSettings.app_name;
+    const fullName = appFullNameInput?.value || currentAppSettings.app_full_name;
+    
+    if (previewAppName) previewAppName.textContent = name;
+    if (previewAppFullName) previewAppFullName.textContent = fullName;
+    if (previewLogoDefault && !document.getElementById('previewLogoImg')?.src) {
+        previewLogoDefault.innerHTML = name.substring(0, 3).split('').map(l => 
+            `<span>${l}</span>`
+        ).join('');
+    }
+}
+
+// Save app settings to database
+async function saveAppSettings(settings) {
+    try {
+        const isAdmin = await isCurrentUserAdmin();
+        if (!isAdmin) {
+            showToast('Admin privileges required to change settings', 'error');
+            return false;
+        }
+        
+        const { data, error } = await window.supabase
+            .from('app_settings')
+            .upsert({
+                id: 1,
+                app_name: settings.app_name,
+                app_full_name: settings.app_full_name,
+                app_logo_url: settings.app_logo_url,
+                updated_at: new Date().toISOString()
+            }, { onConflict: 'id' })
+            .select()
+            .single();
+        
+        if (error) throw error;
+        
+        currentAppSettings = {
+            app_name: data.app_name,
+            app_full_name: data.app_full_name,
+            app_logo_url: data.app_logo_url
+        };
+        
+        applyAppSettings();
+        showToast('App settings saved successfully!', 'success');
+        return true;
+    } catch (err) {
+        console.error('Error saving app settings:', err);
+        showToast('Failed to save settings. Please try again.', 'error');
+        return false;
+    }
+}
+
+// Upload logo to Supabase Storage
+async function uploadLogo(file) {
+    try {
+        if (file.size > 500 * 1024) {
+            showToast('Logo file must be less than 500KB', 'error');
+            return null;
+        }
+        
+        const fileExt = file.name.split('.').pop();
+        const fileName = `app-logo-${Date.now()}.${fileExt}`;
+        const filePath = `logos/${fileName}`;
+        
+        const { data, error } = await window.supabase.storage
+            .from('app-assets')
+            .upload(filePath, file, {
+                cacheControl: '3600',
+                upsert: true
+            });
+        
+        if (error) throw error;
+        
+        // Get public URL
+        const { data: urlData } = window.supabase.storage
+            .from('app-assets')
+            .getPublicUrl(filePath);
+        
+        return urlData.publicUrl;
+    } catch (err) {
+        console.error('Error uploading logo:', err);
+        showToast('Failed to upload logo. Storage may not be configured.', 'error');
+        return null;
+    }
+}
+
+// Initialize Settings page
+function initializeSettingsPage() {
+    const appCustomizationForm = document.getElementById('appCustomizationForm');
+    const customAppName = document.getElementById('customAppName');
+    const customAppFullName = document.getElementById('customAppFullName');
+    const customAppLogo = document.getElementById('customAppLogo');
+    const logoUploadArea = document.getElementById('logoUploadArea');
+    const uploadPlaceholder = document.getElementById('uploadPlaceholder');
+    const uploadPreview = document.getElementById('uploadPreview');
+    const uploadPreviewImg = document.getElementById('uploadPreviewImg');
+    const removeLogoBtn = document.getElementById('removeLogoBtn');
+    const resetAppCustomization = document.getElementById('resetAppCustomization');
+    const goToUserManagement = document.getElementById('goToUserManagement');
+    const backToSettingsBtn = document.getElementById('backToSettingsBtn');
+    
+    let pendingLogoFile = null;
+    let pendingLogoUrl = null;
+    
+    // Live preview updates
+    if (customAppName) {
+        customAppName.addEventListener('input', updateAppPreview);
+    }
+    if (customAppFullName) {
+        customAppFullName.addEventListener('input', updateAppPreview);
+    }
+    
+    // Logo upload area click
+    if (logoUploadArea && customAppLogo) {
+        logoUploadArea.addEventListener('click', () => {
+            customAppLogo.click();
+        });
+        
+        // Drag and drop
+        logoUploadArea.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            logoUploadArea.classList.add('drag-over');
+        });
+        
+        logoUploadArea.addEventListener('dragleave', () => {
+            logoUploadArea.classList.remove('drag-over');
+        });
+        
+        logoUploadArea.addEventListener('drop', (e) => {
+            e.preventDefault();
+            logoUploadArea.classList.remove('drag-over');
+            const files = e.dataTransfer.files;
+            if (files.length > 0) {
+                handleLogoFile(files[0]);
+            }
+        });
+        
+        customAppLogo.addEventListener('change', (e) => {
+            if (e.target.files.length > 0) {
+                handleLogoFile(e.target.files[0]);
+            }
+        });
+    }
+    
+    function handleLogoFile(file) {
+        if (!file.type.startsWith('image/')) {
+            showToast('Please select an image file', 'error');
+            return;
+        }
+        
+        if (file.size > 500 * 1024) {
+            showToast('Logo must be less than 500KB', 'error');
+            return;
+        }
+        
+        pendingLogoFile = file;
+        
+        // Preview
+        const reader = new FileReader();
+        reader.onload = (e) => {
+            pendingLogoUrl = e.target.result;
+            if (uploadPreviewImg) uploadPreviewImg.src = pendingLogoUrl;
+            if (uploadPlaceholder) uploadPlaceholder.style.display = 'none';
+            if (uploadPreview) uploadPreview.style.display = 'inline-block';
+            
+            // Update preview
+            const previewLogoImg = document.getElementById('previewLogoImg');
+            const previewLogoDefault = document.getElementById('previewLogoDefault');
+            if (previewLogoImg) {
+                previewLogoImg.src = pendingLogoUrl;
+                previewLogoImg.style.display = 'block';
+            }
+            if (previewLogoDefault) previewLogoDefault.style.display = 'none';
+        };
+        reader.readAsDataURL(file);
+    }
+    
+    // Remove logo
+    if (removeLogoBtn) {
+        removeLogoBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            pendingLogoFile = null;
+            pendingLogoUrl = null;
+            if (customAppLogo) customAppLogo.value = '';
+            if (uploadPlaceholder) uploadPlaceholder.style.display = 'flex';
+            if (uploadPreview) uploadPreview.style.display = 'none';
+            
+            // Reset preview
+            const previewLogoImg = document.getElementById('previewLogoImg');
+            const previewLogoDefault = document.getElementById('previewLogoDefault');
+            if (previewLogoImg) previewLogoImg.style.display = 'none';
+            if (previewLogoDefault) {
+                previewLogoDefault.style.display = 'flex';
+                updateAppPreview();
+            }
+        });
+    }
+    
+    // Reset to defaults
+    if (resetAppCustomization) {
+        resetAppCustomization.addEventListener('click', async () => {
+            if (confirm('Reset app customization to defaults?')) {
+                await saveAppSettings(defaultAppSettings);
+                populateSettingsForm();
+                pendingLogoFile = null;
+                pendingLogoUrl = null;
+                if (uploadPlaceholder) uploadPlaceholder.style.display = 'flex';
+                if (uploadPreview) uploadPreview.style.display = 'none';
+            }
+        });
+    }
+    
+    // Save form
+    if (appCustomizationForm) {
+        appCustomizationForm.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            
+            const saveBtn = document.getElementById('saveAppCustomization');
+            if (saveBtn) {
+                saveBtn.disabled = true;
+                saveBtn.innerHTML = '<span class="btn-icon">⏳</span> Saving...';
+            }
+            
+            try {
+                let logoUrl = currentAppSettings.app_logo_url;
+                
+                // Upload new logo if selected
+                if (pendingLogoFile) {
+                    const uploadedUrl = await uploadLogo(pendingLogoFile);
+                    if (uploadedUrl) {
+                        logoUrl = uploadedUrl;
+                    }
+                } else if (pendingLogoUrl === null && !uploadPreview?.style.display?.includes('none')) {
+                    // Keep current logo
+                } else if (!pendingLogoFile && uploadPreview?.style.display === 'none') {
+                    // Logo was removed
+                    logoUrl = null;
+                }
+                
+                await saveAppSettings({
+                    app_name: customAppName?.value || defaultAppSettings.app_name,
+                    app_full_name: customAppFullName?.value || defaultAppSettings.app_full_name,
+                    app_logo_url: logoUrl
+                });
+                
+                pendingLogoFile = null;
+            } finally {
+                if (saveBtn) {
+                    saveBtn.disabled = false;
+                    saveBtn.innerHTML = '<span class="btn-icon">💾</span> Save Changes';
+                }
+            }
+        });
+    }
+    
+    // Go to User Management
+    if (goToUserManagement) {
+        goToUserManagement.addEventListener('click', () => {
+            navigateToHash('#settings/user-management', true);
+        });
+    }
+    
+    // Back to Settings
+    if (backToSettingsBtn) {
+        backToSettingsBtn.addEventListener('click', () => {
+            navigateToHash('#settings', true);
+        });
+    }
+}
+
+// Populate settings form with current values
+function populateSettingsForm() {
+    const customAppName = document.getElementById('customAppName');
+    const customAppFullName = document.getElementById('customAppFullName');
+    const uploadPreview = document.getElementById('uploadPreview');
+    const uploadPlaceholder = document.getElementById('uploadPlaceholder');
+    const uploadPreviewImg = document.getElementById('uploadPreviewImg');
+    const previewLogoImg = document.getElementById('previewLogoImg');
+    const previewLogoDefault = document.getElementById('previewLogoDefault');
+    
+    if (customAppName) customAppName.value = currentAppSettings.app_name;
+    if (customAppFullName) customAppFullName.value = currentAppSettings.app_full_name;
+    
+    if (currentAppSettings.app_logo_url) {
+        if (uploadPreviewImg) uploadPreviewImg.src = currentAppSettings.app_logo_url;
+        if (uploadPlaceholder) uploadPlaceholder.style.display = 'none';
+        if (uploadPreview) uploadPreview.style.display = 'inline-block';
+        if (previewLogoImg) {
+            previewLogoImg.src = currentAppSettings.app_logo_url;
+            previewLogoImg.style.display = 'block';
+        }
+        if (previewLogoDefault) previewLogoDefault.style.display = 'none';
+    } else {
+        if (uploadPlaceholder) uploadPlaceholder.style.display = 'flex';
+        if (uploadPreview) uploadPreview.style.display = 'none';
+        if (previewLogoImg) previewLogoImg.style.display = 'none';
+        if (previewLogoDefault) previewLogoDefault.style.display = 'flex';
+    }
+    
+    updateAppPreview();
+}
+
+// Load settings page data
+async function loadSettingsPageData() {
+    // Load current settings
+    await loadAppSettings();
+    populateSettingsForm();
+    
+    // Load user count for the card
+    try {
+        const { count, error } = await window.supabase
+            .from('user_profiles')
+            .select('*', { count: 'exact', head: true });
+        
+        const userCountEl = document.getElementById('settingsUserCount');
+        if (userCountEl) {
+            userCountEl.textContent = error ? '-' : (count || 0);
+        }
+    } catch (err) {
+        console.warn('Error loading user count:', err);
+    }
+}
+
+// Load app settings on page load (for login page)
+document.addEventListener('DOMContentLoaded', () => {
+    loadAppSettings();
 });

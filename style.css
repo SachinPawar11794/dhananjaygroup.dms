@@ -2868,3 +2868,494 @@ body {
         font-size: 1rem;
     }
 }
+
+/* ============================================
+   DMS BRANDING STYLES
+   ============================================ */
+
+/* Sidebar Logo/Branding */
+.sidebar-logo {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    text-decoration: none;
+    cursor: default;
+}
+
+.app-logo-container {
+    width: 38px;
+    height: 38px;
+    border-radius: 10px;
+    overflow: hidden;
+    flex-shrink: 0;
+}
+
+.app-logo-img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
+.app-logo-default {
+    width: 100%;
+    height: 100%;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 1px;
+    box-shadow: 0 2px 8px rgba(102, 126, 234, 0.4);
+}
+
+.app-logo-default .logo-letter {
+    color: white;
+    font-size: 0.75rem;
+    font-weight: 800;
+    text-shadow: 0 1px 2px rgba(0,0,0,0.2);
+}
+
+.app-name {
+    font-size: 1.25rem;
+    font-weight: 800;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+    letter-spacing: -0.5px;
+}
+
+/* Header Branding */
+.header-brand {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+}
+
+.header-logo-mini {
+    width: 32px;
+    height: 32px;
+    border-radius: 8px;
+    overflow: hidden;
+    flex-shrink: 0;
+}
+
+.header-logo-img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
+.header-logo-default {
+    width: 100%;
+    height: 100%;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: white;
+    font-size: 0.625rem;
+    font-weight: 800;
+    letter-spacing: -0.5px;
+    box-shadow: 0 2px 6px rgba(102, 126, 234, 0.3);
+}
+
+.header-titles {
+    display: flex;
+    flex-direction: column;
+    gap: 0;
+}
+
+.header-titles .logo {
+    font-size: 1rem;
+    font-weight: 700;
+    color: var(--text-primary);
+    margin: 0;
+    line-height: 1.2;
+}
+
+/* Login Page Branding */
+.login-branding {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.75rem;
+    margin-bottom: 1.5rem;
+}
+
+.login-logo {
+    width: 100px;
+    height: 100px;
+    border-radius: 24px;
+    overflow: hidden;
+    box-shadow: 0 8px 32px rgba(102, 126, 234, 0.4);
+}
+
+.login-logo-img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
+.login-logo-default {
+    width: 100%;
+    height: 100%;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 3px;
+}
+
+.login-logo-letter {
+    color: white;
+    font-size: 1.75rem;
+    font-weight: 900;
+    text-shadow: 0 2px 4px rgba(0,0,0,0.2);
+}
+
+.login-app-name {
+    font-size: 2.5rem;
+    font-weight: 900;
+    color: white;
+    letter-spacing: 2px;
+    margin: 0;
+    text-shadow: 0 2px 8px rgba(0,0,0,0.2);
+}
+
+.login-app-fullname {
+    font-size: 1rem;
+    font-weight: 500;
+    color: rgba(255,255,255,0.9);
+    margin: 0;
+    text-align: center;
+}
+
+.login-greeting {
+    margin-top: auto;
+}
+
+.login-greeting p {
+    color: rgba(255,255,255,0.8);
+    font-size: 0.9rem;
+}
+
+/* ============================================
+   SETTINGS PAGE STYLES
+   ============================================ */
+
+.settings-cards-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(400px, 1fr));
+    gap: 1.5rem;
+    padding: 0;
+}
+
+.settings-card {
+    background: var(--surface);
+    border-radius: 16px;
+    box-shadow: var(--shadow-md);
+    overflow: hidden;
+    transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.settings-card:hover {
+    box-shadow: var(--shadow-lg);
+}
+
+.settings-card-header {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    padding: 1.25rem 1.5rem;
+    background: linear-gradient(135deg, rgba(102, 126, 234, 0.05) 0%, rgba(118, 75, 162, 0.05) 100%);
+    border-bottom: 1px solid var(--border-color);
+}
+
+.settings-card-icon {
+    width: 48px;
+    height: 48px;
+    border-radius: 12px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.5rem;
+    flex-shrink: 0;
+}
+
+.settings-card-header h3 {
+    font-size: 1.25rem;
+    font-weight: 700;
+    color: var(--text-primary);
+    margin: 0;
+}
+
+.settings-card-body {
+    padding: 1.5rem;
+}
+
+.settings-card-description {
+    color: var(--text-secondary);
+    font-size: 0.9rem;
+    margin: 0 0 1.25rem 0;
+    line-height: 1.5;
+}
+
+.settings-card-stats {
+    background: var(--background);
+    border-radius: 10px;
+    padding: 1rem;
+    margin-bottom: 1.25rem;
+}
+
+.stat-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.stat-label {
+    color: var(--text-secondary);
+    font-size: 0.875rem;
+}
+
+.stat-value {
+    font-size: 1.5rem;
+    font-weight: 700;
+    color: var(--primary-color);
+}
+
+.settings-card-action {
+    width: 100%;
+    justify-content: center;
+}
+
+/* User Management Card - Clickable */
+.user-management-card {
+    cursor: pointer;
+}
+
+.user-management-card:hover {
+    transform: translateY(-2px);
+}
+
+/* App Customization Card */
+.app-customization-card {
+    grid-column: span 1;
+}
+
+.app-preview-section {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    border-radius: 12px;
+    padding: 1.5rem;
+    margin-bottom: 1.5rem;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.75rem;
+}
+
+.app-preview-logo {
+    width: 70px;
+    height: 70px;
+    border-radius: 16px;
+    overflow: hidden;
+    background: rgba(255,255,255,0.2);
+    box-shadow: 0 4px 16px rgba(0,0,0,0.2);
+}
+
+.app-preview-logo img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
+.preview-logo-default {
+    width: 100%;
+    height: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 2px;
+    background: rgba(255,255,255,0.95);
+}
+
+.preview-logo-default span {
+    font-size: 1.25rem;
+    font-weight: 900;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+}
+
+.app-preview-name {
+    font-size: 1.5rem;
+    font-weight: 800;
+    color: white;
+    letter-spacing: 1px;
+}
+
+.app-preview-fullname {
+    font-size: 0.85rem;
+    color: rgba(255,255,255,0.85);
+    text-align: center;
+}
+
+/* App Customization Form */
+.app-customization-form .form-group {
+    margin-bottom: 1.25rem;
+}
+
+.app-customization-form label {
+    display: block;
+    font-weight: 600;
+    color: var(--text-primary);
+    margin-bottom: 0.5rem;
+    font-size: 0.875rem;
+}
+
+.app-customization-form input[type="text"] {
+    width: 100%;
+    padding: 0.75rem 1rem;
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    font-size: 0.9rem;
+    transition: border-color 0.2s, box-shadow 0.2s;
+}
+
+.app-customization-form input[type="text"]:focus {
+    outline: none;
+    border-color: var(--primary-color);
+    box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
+}
+
+.app-customization-form small {
+    display: block;
+    color: var(--text-secondary);
+    font-size: 0.75rem;
+    margin-top: 0.35rem;
+}
+
+/* Logo Upload Area */
+.logo-upload-area {
+    border: 2px dashed var(--border-color);
+    border-radius: 12px;
+    padding: 1.5rem;
+    text-align: center;
+    cursor: pointer;
+    transition: border-color 0.2s, background 0.2s;
+    position: relative;
+}
+
+.logo-upload-area:hover {
+    border-color: var(--primary-color);
+    background: rgba(37, 99, 235, 0.02);
+}
+
+.logo-upload-area.drag-over {
+    border-color: var(--primary-color);
+    background: rgba(37, 99, 235, 0.05);
+}
+
+.upload-placeholder {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.upload-icon {
+    font-size: 2rem;
+}
+
+.upload-placeholder span {
+    color: var(--text-secondary);
+    font-size: 0.9rem;
+}
+
+.upload-placeholder small {
+    color: var(--text-secondary);
+    font-size: 0.75rem;
+}
+
+.upload-preview {
+    position: relative;
+    display: inline-block;
+}
+
+.upload-preview img {
+    max-width: 120px;
+    max-height: 120px;
+    border-radius: 12px;
+    box-shadow: var(--shadow-md);
+}
+
+.remove-logo-btn {
+    position: absolute;
+    top: -8px;
+    right: -8px;
+    width: 24px;
+    height: 24px;
+    border-radius: 50%;
+    background: var(--error-color);
+    color: white;
+    border: none;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.875rem;
+    box-shadow: var(--shadow-sm);
+    transition: transform 0.2s;
+}
+
+.remove-logo-btn:hover {
+    transform: scale(1.1);
+}
+
+.app-customization-form .form-actions {
+    display: flex;
+    gap: 1rem;
+    justify-content: flex-end;
+    padding-top: 1rem;
+    border-top: 1px solid var(--border-color);
+    margin-top: 1.5rem;
+}
+
+/* Responsive Settings */
+@media (max-width: 900px) {
+    .settings-cards-grid {
+        grid-template-columns: 1fr;
+    }
+}
+
+@media (max-width: 480px) {
+    .settings-cards-grid {
+        grid-template-columns: 1fr;
+    }
+    
+    .settings-card-header {
+        padding: 1rem;
+    }
+    
+    .settings-card-body {
+        padding: 1rem;
+    }
+    
+    .app-preview-section {
+        padding: 1rem;
+    }
+    
+    .login-logo {
+        width: 80px;
+        height: 80px;
+    }
+    
+    .login-app-name {
+        font-size: 2rem;
+    }
+    
+    .login-app-fullname {
+        font-size: 0.875rem;
+    }
+}
