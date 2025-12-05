@@ -330,23 +330,41 @@ function initializeSidebar() {
     const sidebarToggle = document.getElementById("sidebarToggle");
     const sidebar = document.getElementById("sidebar");
 
-    // Toggle sidebar on mobile
-    if (menuToggle) {
-        menuToggle.addEventListener("click", () => {
-            sidebar.classList.toggle("open");
-        });
+    if (!sidebar) {
+        console.error("Sidebar element not found");
+        return;
     }
 
+    // Toggle sidebar on mobile - use both click and touchend for better mobile support
+    if (menuToggle) {
+        const toggleSidebar = (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            sidebar.classList.toggle("open");
+            console.log("Menu toggle clicked, sidebar open:", sidebar.classList.contains("open"));
+        };
+        
+        menuToggle.addEventListener("click", toggleSidebar);
+        // Add touchend for better mobile responsiveness
+        menuToggle.addEventListener("touchend", (e) => {
+            e.preventDefault();
+            toggleSidebar(e);
+        }, { passive: false });
+    }
+
+    // Close button inside sidebar
     if (sidebarToggle) {
-        sidebarToggle.addEventListener("click", () => {
+        sidebarToggle.addEventListener("click", (e) => {
+            e.preventDefault();
             sidebar.classList.remove("open");
         });
     }
 
     // Close sidebar when clicking outside on mobile
     document.addEventListener("click", (e) => {
-        if (window.innerWidth <= 768) {
-            if (!sidebar.contains(e.target) && !menuToggle.contains(e.target) && sidebar.classList.contains("open")) {
+        if (window.innerWidth <= 768 && sidebar.classList.contains("open")) {
+            // Check if click is outside sidebar and menu toggle
+            if (!sidebar.contains(e.target) && menuToggle && !menuToggle.contains(e.target)) {
                 sidebar.classList.remove("open");
             }
         }
