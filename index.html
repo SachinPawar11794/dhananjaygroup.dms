@@ -568,6 +568,7 @@
                     <table id="shiftScheduleTable" style="display: none;">
                         <thead>
                             <tr>
+                                <th>ID</th>
                                 <th>Plant</th>
                                 <th>Shift</th>
                                 <th>Time</th>
@@ -679,21 +680,32 @@
                     <p class="subtitle">View and generate hourly production reports</p>
                 </div>
 
-                <div style="display: flex; gap: 0.75rem; margin-bottom: 1.5rem; flex-wrap: wrap; align-items: center;">
-                    <button class="btn-primary" id="generateHourlyReportBtn" style="flex-shrink: 0;">
-                        <span class="btn-icon">📊</span>
-                        Generate Report
-                    </button>
-                    <div style="display: flex; gap: 0.5rem; flex-shrink: 0;">
-                        <button class="btn-secondary" id="archiveOldReportsBtn" title="Archive old reports" style="padding: 0.5rem 0.75rem; font-size: 0.875rem;">
-                            <span class="btn-icon">📦</span>
-                            Archive
+                <div style="display: flex; gap: 0.75rem; margin-bottom: 1.5rem; flex-wrap: wrap; align-items: center; justify-content: space-between;">
+                    <div style="display: flex; gap: 0.75rem; flex-wrap: wrap; align-items: center;">
+                        <button class="btn-primary" id="generateHourlyReportBtn" style="flex-shrink: 0;">
+                            <span class="btn-icon">📊</span>
+                            Generate Report
                         </button>
-                        <button class="btn-secondary" id="archiveConfigBtn" title="Archive settings" style="padding: 0.5rem 0.75rem; font-size: 0.875rem;">
-                            <span class="btn-icon">⚙️</span>
-                            Settings
-                        </button>
+                        <div style="display: flex; gap: 0.5rem; flex-shrink: 0;">
+                            <button class="btn-secondary" id="archiveOldReportsBtn" title="Archive old reports" style="padding: 0.5rem 0.75rem; font-size: 0.875rem;">
+                                <span class="btn-icon">📦</span>
+                                Archive
+                            </button>
+                            <button class="btn-secondary" id="archiveConfigBtn" title="Archive settings" style="padding: 0.5rem 0.75rem; font-size: 0.875rem;">
+                                <span class="btn-icon">⚙️</span>
+                                Settings
+                            </button>
+                        </div>
                     </div>
+                    <div id="hourlyReportLastUpdated" class="last-updated-info" style="display: none;">
+                        <span class="last-updated-icon">🕐</span>
+                        <span class="last-updated-label">LAST UPDATED:</span>
+                        <span class="last-updated-time" id="hourlyReportLastUpdatedTime">-</span>
+                    </div>
+                </div>
+
+                <!-- Filters Row -->
+                <div style="display: flex; gap: 0.75rem; margin-bottom: 1rem; flex-wrap: wrap; align-items: flex-end;">
                     <div class="filter-group" style="min-width: 180px; flex: 0 0 auto;">
                         <label for="hourlyReportDateFilter" style="font-size: 0.8125rem; margin-bottom: 0.25rem;">Date</label>
                         <input type="date" id="hourlyReportDateFilter" class="filter-select" style="padding: 0.5rem; font-size: 0.875rem;">
@@ -708,11 +720,11 @@
                             <option value="General">General</option>
                         </select>
                     </div>
-                    <div class="filter-group" style="min-width: auto; flex: 0 0 auto; display: flex; align-items: center; gap: 0.5rem; padding-top: 1.5rem;">
+                    <div class="filter-group" style="min-width: auto; flex: 0 0 auto; display: flex; align-items: center; gap: 0.5rem;">
                         <input type="checkbox" id="hourlyReportHideArchived" style="width: auto; margin: 0; cursor: pointer;">
                         <label for="hourlyReportHideArchived" style="font-size: 0.8125rem; margin: 0; cursor: pointer; white-space: nowrap;">Hide Archived</label>
                     </div>
-                    <button class="btn-secondary" id="clearHourlyReportFiltersBtn" style="padding: 0.5rem 0.75rem; font-size: 0.875rem; align-self: flex-end;">Clear</button>
+                    <button class="btn-secondary" id="clearHourlyReportFiltersBtn" style="padding: 0.5rem 0.75rem; font-size: 0.875rem;">Clear</button>
                 </div>
 
                 <!-- Hourly Report Table Container -->
@@ -728,7 +740,7 @@
                                 <th>Machine Name</th>
                                 <th>Sr No</th>
                                 <th>Shift</th>
-                                <th>Date</th>
+                                <th>Work Day Date</th>
                                 <th>Time</th>
                                 <th>Operator</th>
                                 <th>Part No.</th>
@@ -748,7 +760,7 @@
                                 <th>Cell Name</th>
                                 <th>Cell Leader</th>
                                 <th>Archive Status</th>
-                                <th>Custom Date</th>
+                                <th>IoT Date</th>
                             </tr>
                         </thead>
                         <tbody id="hourlyReportTableBody">
@@ -1564,6 +1576,14 @@
             <form id="shiftScheduleForm" class="settings-form">
                 <input type="hidden" id="shiftScheduleEditId" name="shiftScheduleEditId" value="">
                 <div class="form-grid">
+                    <div class="form-group">
+                        <label for="ss_id">ID (Sort Order) <span class="required">*</span></label>
+                        <input type="number" id="ss_id" name="ss_id" required min="1" placeholder="e.g., 1, 2, 3...">
+                        <small style="color: var(--text-secondary); margin-top: 0.25rem; display: block;">
+                            Used for sorting order (lower numbers appear first)
+                        </small>
+                    </div>
+
                     <div class="form-group">
                         <label for="ss_plant">Plant <span class="required">*</span></label>
                         <input type="text" id="ss_plant" name="ss_plant" required placeholder="e.g., 3001">

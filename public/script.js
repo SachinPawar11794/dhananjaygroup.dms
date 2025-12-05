@@ -2744,6 +2744,26 @@ function formatTimestamp(timestamp) {
     });
 }
 
+// Function to format Work Day Date as DD/MM/YYYY (date only, no time)
+function formatWorkDayDate(timestamp) {
+    if (!timestamp) return "-";
+
+    let iso = String(timestamp);
+    // If the string has no explicit timezone (no 'Z' and no '+' offset), treat as UTC
+    if (!iso.includes("Z") && !iso.includes("+")) {
+        iso = iso + "Z";
+    }
+
+    const date = new Date(iso);
+
+    return date.toLocaleDateString("en-GB", {
+        timeZone: "Asia/Kolkata",
+        day: "2-digit",
+        month: "2-digit",
+        year: "numeric"
+    });
+}
+
 // Toast notification function
 function showToast(message, type = "success") {
     const toast = document.getElementById("toast");
@@ -3360,11 +3380,9 @@ async function loadShiftScheduleTable(page = 1) {
             query = query.eq("Shift", shiftFilter);
         }
 
-        // Apply ordering and pagination
+        // Apply ordering by ID (ascending) and pagination
         const { data, error, count } = await query
-            .order("Plant", { ascending: true })
-            .order("Shift", { ascending: true })
-            .order("Time", { ascending: true })
+            .order("id", { ascending: true })
             .range(from, to);
 
         if (error) throw error;
@@ -3382,6 +3400,7 @@ async function loadShiftScheduleTable(page = 1) {
                 data.forEach((item) => {
                     const row = document.createElement("tr");
                     row.innerHTML = `
+                        <td>${item.id || "-"}</td>
                         <td>${item.Plant || "-"}</td>
                         <td>${item.Shift || "-"}</td>
                         <td>${item.Time || "-"}</td>
@@ -3473,6 +3492,7 @@ function initializeShiftScheduleModal() {
             if (form) {
                 form.reset();
                 document.getElementById("shiftScheduleEditId").value = "";
+                document.getElementById("ss_id").value = "";
             }
             if (modalTitle) modalTitle.textContent = "Add Shift Schedule Entry";
         });
@@ -3516,6 +3536,8 @@ async function handleShiftScheduleFormSubmit(e) {
         submitBtn.textContent = "Saving...";
     }
 
+    const newId = parseInt(document.getElementById("ss_id").value) || null;
+    
     const formData = {
         Plant: document.getElementById("ss_plant").value.trim(),
         Shift: document.getElementById("ss_shift").value,
@@ -3529,9 +3551,15 @@ async function handleShiftScheduleFormSubmit(e) {
         let result;
         if (editId) {
             // Update existing entry
+            // If ID is being changed, we need to handle it specially
+            const updateData = { ...formData };
+            if (newId && newId !== parseInt(editId)) {
+                updateData.id = newId;
+            }
+            
             const { data, error } = await window.supabase
                 .from("ShiftSchedule")
-                .update(formData)
+                .update(updateData)
                 .eq("id", editId)
                 .select();
             
@@ -3539,10 +3567,15 @@ async function handleShiftScheduleFormSubmit(e) {
             result = data;
             showToast("Shift schedule entry updated successfully", "success");
         } else {
-            // Insert new entry
+            // Insert new entry with specified ID
+            const insertData = { ...formData };
+            if (newId) {
+                insertData.id = newId;
+            }
+            
             const { data, error } = await window.supabase
                 .from("ShiftSchedule")
-                .insert([formData])
+                .insert([insertData])
                 .select();
             
             if (error) throw error;
@@ -3586,6 +3619,7 @@ async function editShiftScheduleEntry(id) {
 
         if (data) {
             document.getElementById("shiftScheduleEditId").value = id;
+            document.getElementById("ss_id").value = data.id || "";
             document.getElementById("ss_plant").value = data.Plant || "";
             document.getElementById("ss_shift").value = data.Shift || "";
             document.getElementById("ss_time").value = data.Time || "";
@@ -4029,7 +4063,7 @@ async function loadHourlyReportTable(page = 1) {
 
         // Apply filters
         if (dateFilter) {
-            query = query.eq("Date", dateFilter);
+            query = query.eq("IoT Date", dateFilter);
         }
         if (shiftFilter) {
             query = query.eq("Shift", shiftFilter);
@@ -4044,7 +4078,7 @@ async function loadHourlyReportTable(page = 1) {
 
         // Apply ordering and pagination
         const { data, error, count } = await query
-            .order("Custom Date", { ascending: false })
+            .order("Work Day Date", { ascending: false })
             .order("Shift", { ascending: true })
             .order("Time", { ascending: true })
             .range(from, to);
@@ -4082,7 +4116,7 @@ async function loadHourlyReportTable(page = 1) {
                         archiveStatus = '<span class="status-badge status-archived" title="Archived - Read Only">Archived</span>';
                     } else {
                         // Use Custom Date if available, otherwise use Date field
-                        const recordDate = item["Custom Date"] || item.Date;
+                        const recordDate = item["Work Day Date"] || item["IoT Date"];
                         const daysUntilArchive = calculateDaysUntilArchive(recordDate, archiveFrequencyDays);
                         if (daysUntilArchive !== null) {
                             if (daysUntilArchive === 0) {
@@ -4101,7 +4135,7 @@ async function loadHourlyReportTable(page = 1) {
                         <td>${item["Machine Name"] || "-"}</td>
                         <td>${item["Sr No"] || "-"}</td>
                         <td>${item.Shift || "-"}</td>
-                        <td>${item.Date || "-"}</td>
+                        <td>${item["Work Day Date"] ? formatWorkDayDate(item["Work Day Date"]) : "-"}</td>
                         <td>${item.Time || "-"}</td>
                         <td>${item.Operator || "-"}</td>
                         <td>${item["Part No."] || "-"}</td>
@@ -4121,7 +4155,7 @@ async function loadHourlyReportTable(page = 1) {
                         <td>${item["Cell Name"] || "-"}</td>
                         <td>${item["Cell Leader"] || "-"}</td>
                         <td>${archiveStatus}</td>
-                        <td>${item["Custom Date"] ? formatTimestamp(item["Custom Date"]) : "-"}</td>
+                        <td>${item["IoT Date"] || "-"}</td>
                     `;
                     tableBody.appendChild(row);
                 });
@@ -4129,10 +4163,17 @@ async function loadHourlyReportTable(page = 1) {
             if (table) table.style.display = "table";
             if (pagination) pagination.style.display = "flex";
             updateHourlyReportPagination();
+            
+            // Update Last Updated timestamp
+            updateHourlyReportLastUpdated(data);
         } else {
             if (tableBody) tableBody.innerHTML = "";
             if (table) table.style.display = "none";
             if (emptyMessage) emptyMessage.style.display = "block";
+            
+            // Hide Last Updated when no data
+            const lastUpdatedContainer = document.getElementById("hourlyReportLastUpdated");
+            if (lastUpdatedContainer) lastUpdatedContainer.style.display = "none";
         }
     } catch (error) {
         console.error("Error loading Hourly Report data:", error);
@@ -4182,6 +4223,93 @@ function updateHourlyReportPagination() {
     }
 }
 
+// Update Hourly Report Last Updated timestamp
+function updateHourlyReportLastUpdated(data) {
+    const lastUpdatedContainer = document.getElementById("hourlyReportLastUpdated");
+    const lastUpdatedTime = document.getElementById("hourlyReportLastUpdatedTime");
+    
+    if (!lastUpdatedContainer || !lastUpdatedTime) return;
+    
+    // Find the most recent "Work Day Date" from the data
+    let mostRecentDate = null;
+    
+    if (data && data.length > 0) {
+        for (const item of data) {
+            if (item["Work Day Date"]) {
+                // Properly handle timezone - treat as UTC if no timezone indicator
+                let iso = String(item["Work Day Date"]);
+                if (!iso.includes("Z") && !iso.includes("+")) {
+                    iso = iso + "Z";
+                }
+                const itemDate = new Date(iso);
+                if (!mostRecentDate || itemDate > mostRecentDate) {
+                    mostRecentDate = itemDate;
+                }
+            }
+        }
+    }
+    
+    if (mostRecentDate) {
+        // Format the date in IST timezone
+        const formattedDate = mostRecentDate.toLocaleString('en-GB', {
+            day: '2-digit',
+            month: '2-digit',
+            year: 'numeric',
+            hour: '2-digit',
+            minute: '2-digit',
+            second: '2-digit',
+            hour12: true,
+            timeZone: 'Asia/Kolkata'
+        });
+        lastUpdatedTime.textContent = formattedDate;
+        lastUpdatedContainer.style.display = "flex";
+    } else {
+        lastUpdatedContainer.style.display = "none";
+    }
+}
+
+// Fetch the latest timestamp from the entire HourlyReport table
+async function fetchHourlyReportLastUpdated() {
+    try {
+        const { data, error } = await window.supabase
+            .from("HourlyReport")
+            .select('"Work Day Date"')
+            .order('"Work Day Date"', { ascending: false })
+            .limit(1);
+        
+        if (error) throw error;
+        
+        if (data && data.length > 0 && data[0]["Work Day Date"]) {
+            const lastUpdatedContainer = document.getElementById("hourlyReportLastUpdated");
+            const lastUpdatedTime = document.getElementById("hourlyReportLastUpdatedTime");
+            
+            if (lastUpdatedContainer && lastUpdatedTime) {
+                // Properly handle timezone
+                let iso = String(data[0]["Work Day Date"]);
+                if (!iso.includes("Z") && !iso.includes("+")) {
+                    iso = iso + "Z";
+                }
+                const mostRecentDate = new Date(iso);
+                
+                const formattedDate = mostRecentDate.toLocaleString('en-GB', {
+                    day: '2-digit',
+                    month: '2-digit',
+                    year: 'numeric',
+                    hour: '2-digit',
+                    minute: '2-digit',
+                    second: '2-digit',
+                    hour12: true,
+                    timeZone: 'Asia/Kolkata'
+                });
+                lastUpdatedTime.textContent = formattedDate;
+                lastUpdatedContainer.style.display = "flex";
+            }
+        }
+    } catch (error) {
+        console.error("Error fetching last updated timestamp:", error);
+    }
+}
+
 // Generate Hour Group Production Report (based on schedule time groups)
 async function generateHourlyReport() {
     const generateBtn = document.getElementById("generateHourlyReportBtn");
@@ -4193,11 +4321,11 @@ async function generateHourlyReport() {
     try {
         showToast("Generating hour group production report...", "info");
 
-        // Step 1: Fetch Shift Schedule data to get time groups
+        // Step 1: Fetch Shift Schedule data to get time groups (sorted by ID)
         const { data: shiftScheduleData, error: shiftError } = await window.supabase
             .from("ShiftSchedule")
             .select("*")
-            .order("Time", { ascending: true });
+            .order("id", { ascending: true });
 
         if (shiftError) throw shiftError;
 
@@ -4255,7 +4383,7 @@ async function generateHourlyReport() {
         // Step 6: Insert records into HourlyReport table
         if (reportRecords.length > 0) {
             // Get unique dates from report records
-            const reportDates = [...new Set(reportRecords.map(r => r.Date))];
+            const reportDates = [...new Set(reportRecords.map(r => r["IoT Date"]))];
             
             // Delete existing NON-ARCHIVED records for these dates to avoid duplicates
             if (reportDates.length > 0) {
@@ -4263,7 +4391,7 @@ async function generateHourlyReport() {
                 const { error: deleteError } = await window.supabase
                     .from("HourlyReport")
                     .delete()
-                    .in("Date", reportDates)
+                    .in("IoT Date", reportDates)
                     .eq("archived", false);
                 
                 if (deleteError) {
@@ -4439,6 +4567,32 @@ async function processHourGroupData(iotData, timeGroups, timeGroupMap) {
     const reportRecords = [];
     const now = new Date();
     
+    // Helper function to calculate Work Day Date
+    // Work day starts at 07:00 and ends at 06:59 next day
+    // If time is 00:00 - 06:59, use previous day as work day
+    // If time is 07:00 - 23:59, use same day as work day
+    function getWorkDayDate(timestamp) {
+        const istFormatter = new Intl.DateTimeFormat("en-US", {
+            timeZone: "Asia/Kolkata",
+            hour: "2-digit",
+            minute: "2-digit",
+            hour12: false
+        });
+        const timeParts = istFormatter.formatToParts(timestamp);
+        const hour = parseInt(timeParts.find(p => p.type === "hour").value);
+        
+        // Create a copy of the timestamp in IST
+        const istDate = new Date(timestamp.toLocaleString("en-US", { timeZone: "Asia/Kolkata" }));
+        
+        // If hour is 00-06 (before 07:00), subtract one day to get work day
+        if (hour >= 0 && hour < 7) {
+            istDate.setDate(istDate.getDate() - 1);
+        }
+        
+        // Return as ISO string for timestamp storage
+        return istDate;
+    }
+    
     // Helper function to get time range from timestamp using IST timezone
     // Matches the time groups from schedule
     function getTimeRangeFromTimestamp(timestamp) {
@@ -4481,6 +4635,26 @@ async function processHourGroupData(iotData, timeGroups, timeGroupMap) {
         return `${timeStart} - ${timeEnd}`;
     }
     
+    // Helper function to get time range boundaries as Date objects
+    function getTimeRangeBoundaries(timeRange, referenceDate) {
+        const [startTime, endTime] = timeRange.split(" - ");
+        const [startHour, startMin] = startTime.split(":").map(Number);
+        const [endHour, endMin] = endTime.split(":").map(Number);
+        
+        const startDate = new Date(referenceDate);
+        startDate.setHours(startHour, startMin, 0, 0);
+        
+        const endDate = new Date(referenceDate);
+        endDate.setHours(endHour, endMin, 0, 0);
+        
+        // Handle overnight shifts
+        if (endDate <= startDate) {
+            endDate.setDate(endDate.getDate() + 1);
+        }
+        
+        return { start: startDate, end: endDate };
+    }
+    
     // Group IoT data by date, time group, and other key fields
     const groupedData = {};
     
@@ -4497,7 +4671,7 @@ async function processHourGroupData(iotData, timeGroups, timeGroupMap) {
         if (!timeGroupInfo) continue; // Skip if time range not in schedule
         
         const shift = timeGroupInfo.shift || item["Shift"] || "";
-        const availableTime = timeGroupInfo.availableTime || 0;
+        const scheduleAvailableTime = timeGroupInfo.availableTime || 0; // Keep schedule time for reference
         const lossReason = item["Loss Reasons"] || "No Loss";
         const partCountPerCycle = (item["Part Count Per Cycle"] > 0) ? item["Part Count Per Cycle"] : 1;
         const cycleTime = (item["Cycle Time"] > 0) ? item["Cycle Time"] : 1;
@@ -4526,10 +4700,13 @@ async function processHourGroupData(iotData, timeGroups, timeGroupMap) {
                 cellLeader: item["Cell Leader"] || "",
                 cycleTime: cycleTime,
                 partCountPerCycle: partCountPerCycle,
-                availableTime: availableTime,
+                scheduleAvailableTime: scheduleAvailableTime, // Original from schedule
+                availableTime: 0, // Will be calculated from timestamps
                 totalProducedQty: 0,
                 operatingTime: 0,
-                timestamps: []
+                timestamps: [],
+                firstTimestamp: null,
+                lastTimestamp: null
             };
         }
         
@@ -4537,13 +4714,107 @@ async function processHourGroupData(iotData, timeGroups, timeGroupMap) {
         groupedData[key].totalProducedQty += (item.Value || 0) * partCountPerCycle;
         groupedData[key].operatingTime += ((item.Value || 0) * cycleTime) / 60; // Convert to minutes
         groupedData[key].timestamps.push(timestamp);
+        
+        // Track first and last timestamps
+        if (!groupedData[key].firstTimestamp || timestamp < groupedData[key].firstTimestamp) {
+            groupedData[key].firstTimestamp = timestamp;
+        }
+        if (!groupedData[key].lastTimestamp || timestamp > groupedData[key].lastTimestamp) {
+            groupedData[key].lastTimestamp = timestamp;
+        }
+    }
+    
+    // STEP 2: Calculate Available Time based on timestamp ranges when settings change within an hour
+    // Using proportional distribution based on actual timestamp durations (matching Google Apps Script logic)
+    
+    // Group records by date, time range, and machine to find overlapping settings
+    const dateTimeGroups = {};
+    for (const key of Object.keys(groupedData)) {
+        const data = groupedData[key];
+        const dateTimeKey = `${data.date}|${data.timeRange}|${data.machineNo}`;
+        
+        if (!dateTimeGroups[dateTimeKey]) {
+            dateTimeGroups[dateTimeKey] = [];
+        }
+        dateTimeGroups[dateTimeKey].push({ key, data });
+    }
+    
+    // For each date+time+machine group, calculate Available Time based on timestamp ranges
+    for (const dateTimeKey of Object.keys(dateTimeGroups)) {
+        const settingsInHour = dateTimeGroups[dateTimeKey];
+        const totalScheduleMinutes = settingsInHour[0].data.scheduleAvailableTime;
+        
+        if (settingsInHour.length === 1) {
+            // Only one setting in this hour - use the full schedule Available Time
+            const { key, data } = settingsInHour[0];
+            groupedData[key].availableTime = data.scheduleAvailableTime;
+        } else {
+            // Multiple settings in this hour - calculate Available Time proportionally
+            // Based on actual timestamp duration (last - first timestamp) for each setting
+            
+            // Step 1: Calculate working time for each entry based on actual timestamp range
+            let totalWorkingTime = 0;
+            const workingEntries = [];
+            
+            for (const setting of settingsInHour) {
+                const { key, data } = setting;
+                
+                // Sort timestamps and calculate duration from first to last
+                data.timestamps.sort((a, b) => a - b);
+                const startTimestamp = data.timestamps[0];
+                const endTimestamp = data.timestamps[data.timestamps.length - 1];
+                
+                // Calculate entry working time in minutes (duration this setting was active)
+                // Add 1 minute minimum to account for single-timestamp entries
+                let entryWorkingTime = Math.ceil((endTimestamp - startTimestamp) / (1000 * 60));
+                if (entryWorkingTime === 0) {
+                    entryWorkingTime = 1; // Minimum 1 minute for entries with single timestamp
+                }
+                
+                totalWorkingTime += entryWorkingTime;
+                workingEntries.push({
+                    key: key,
+                    workingTime: entryWorkingTime,
+                    startTimestamp: startTimestamp,
+                    endTimestamp: endTimestamp
+                });
+            }
+            
+            // Step 2: Distribute available time proportionally based on working time
+            for (const entry of workingEntries) {
+                let availableTime;
+                
+                if (totalWorkingTime > 0) {
+                    // Proportional distribution: (entryWorkingTime / totalWorkingTime) * totalAvailableTime
+                    availableTime = Math.round((entry.workingTime / totalWorkingTime) * totalScheduleMinutes * 100) / 100;
+                } else {
+                    // Fallback: equal distribution
+                    availableTime = Math.round((totalScheduleMinutes / settingsInHour.length) * 100) / 100;
+                }
+                
+                groupedData[entry.key].availableTime = availableTime;
+            }
+            
+            // Step 3: Adjust to ensure total equals schedule time (handle rounding)
+            let totalCalculatedTime = workingEntries.reduce((sum, e) => sum + groupedData[e.key].availableTime, 0);
+            const difference = totalScheduleMinutes - totalCalculatedTime;
+            
+            if (Math.abs(difference) > 0.01 && workingEntries.length > 0) {
+                // Add/subtract difference to the largest entry
+                const largestEntry = workingEntries.reduce((max, e) => 
+                    groupedData[e.key].availableTime > groupedData[max.key].availableTime ? e : max
+                );
+                groupedData[largestEntry.key].availableTime = 
+                    Math.round((groupedData[largestEntry.key].availableTime + difference) * 100) / 100;
+            }
+        }
     }
     
     // Convert grouped data to report records
     let srNo = 1;
     const sortedTimeGroups = [...timeGroups]; // Preserve schedule order
     
-    // Sort by date, then by time group order
+    // Sort by date, then by time group order, then by first timestamp
     const sortedKeys = Object.keys(groupedData).sort((a, b) => {
         const aParts = a.split("|");
         const bParts = b.split("|");
@@ -4560,7 +4831,14 @@ async function processHourGroupData(iotData, timeGroups, timeGroupMap) {
         // Then sort by time group order
         const aTimeIndex = sortedTimeGroups.indexOf(aTimeRange);
         const bTimeIndex = sortedTimeGroups.indexOf(bTimeRange);
-        return aTimeIndex - bTimeIndex;
+        if (aTimeIndex !== bTimeIndex) {
+            return aTimeIndex - bTimeIndex;
+        }
+        
+        // Finally sort by first timestamp (for multiple settings within same hour)
+        const aFirstTime = groupedData[a].firstTimestamp;
+        const bFirstTime = groupedData[b].firstTimestamp;
+        return aFirstTime - bFirstTime;
     });
     
     for (const key of sortedKeys) {
@@ -4579,12 +4857,16 @@ async function processHourGroupData(iotData, timeGroups, timeGroupMap) {
             finalLossReason = "Production Occurred";
         }
         
+        // Calculate Work Day Date based on first timestamp of this group
+        // Work day: 07:00 - 06:59 next day counts as same work day
+        const workDayDate = data.firstTimestamp ? getWorkDayDate(data.firstTimestamp) : now;
+        
         reportRecords.push({
             "Plant": data.plant,
             "Machine Name": data.machineNo,
             "Sr No": srNo++,
             "Shift": data.shift,
-            "Date": data.date,
+            "IoT Date": data.date,  // Calendar date from IoT timestamp
             "Time": data.timeRange,
             "Operator": data.operator,
             "Part No.": data.partNo,
@@ -4603,7 +4885,7 @@ async function processHourGroupData(iotData, timeGroups, timeGroupMap) {
             "Loss Reasons": finalLossReason,
             "Cell Name": data.cellName,
             "Cell Leader": data.cellLeader,
-            "Custom Date": now.toISOString(),
+            "Work Day Date": workDayDate.toISOString(),  // Work day date (07:00-06:59 = same day)
             "archived": false
         });
     }
