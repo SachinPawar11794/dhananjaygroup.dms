@@ -879,59 +879,43 @@ async function loadPMSDashboardStats() {
     }
     
     try {
-        // Load Settings count - Table name is "settings" (lowercase)
-        const { count: settingsCount } = await window.supabase
-            .from("settings")
-            .select("*", { count: "exact", head: true });
-        document.getElementById("pmsSettingsCount").textContent = settingsCount || 0;
-
-        // Load Process Master count
-        const { count: processCount } = await window.supabase
-            .from("Process Master")
-            .select("*", { count: "exact", head: true });
-        document.getElementById("pmsProcessCount").textContent = processCount || 0;
-
-        // Load Work Center Master count
-        const { count: machineCount } = await window.supabase
-            .from("WorkCenterMaster")
-            .select("*", { count: "exact", head: true });
-        document.getElementById("pmsMachineCount").textContent = machineCount || 0;
-
-        // Load recent IoT Data count (last 24 hours)
         const yesterday = new Date();
         yesterday.setDate(yesterday.getDate() - 1);
-        const { count: iotCount } = await window.supabase
-            .from("IoT Database")
-            .select("*", { count: "exact", head: true })
-            .gte("Timestamp", yesterday.toISOString());
-        document.getElementById("pmsIoTCount").textContent = iotCount || 0;
-
-        // Load Shift Schedule count
-        const { count: shiftScheduleCount } = await window.supabase
-            .from("ShiftSchedule")
-            .select("*", { count: "exact", head: true });
+        
+        // Run ALL queries in PARALLEL for faster loading
+        const [
+            settingsResult,
+            processResult,
+            machineResult,
+            iotResult,
+            shiftResult,
+            lossResult,
+            hourlyResult
+        ] = await Promise.all([
+            window.supabase.from("settings").select("*", { count: "exact", head: true }),
+            window.supabase.from("Process Master").select("*", { count: "exact", head: true }),
+            window.supabase.from("WorkCenterMaster").select("*", { count: "exact", head: true }),
+            window.supabase.from("IoT Database").select("*", { count: "exact", head: true }).gte("Timestamp", yesterday.toISOString()),
+            window.supabase.from("ShiftSchedule").select("*", { count: "exact", head: true }),
+            window.supabase.from("LossReason").select("*", { count: "exact", head: true }),
+            window.supabase.from("HourlyReport").select("*", { count: "exact", head: true })
+        ]);
+        
+        // Update UI with results
+        document.getElementById("pmsSettingsCount").textContent = settingsResult.count || 0;
+        document.getElementById("pmsProcessCount").textContent = processResult.count || 0;
+        document.getElementById("pmsMachineCount").textContent = machineResult.count || 0;
+        document.getElementById("pmsIoTCount").textContent = iotResult.count || 0;
+        
         const shiftScheduleCountEl = document.getElementById("pmsShiftScheduleCount");
-        if (shiftScheduleCountEl) {
-            shiftScheduleCountEl.textContent = shiftScheduleCount || 0;
-        }
-
-        // Load Loss Reason count
-        const { count: lossReasonCount } = await window.supabase
-            .from("LossReason")
-            .select("*", { count: "exact", head: true });
+        if (shiftScheduleCountEl) shiftScheduleCountEl.textContent = shiftResult.count || 0;
+        
         const lossReasonCountEl = document.getElementById("pmsLossReasonCount");
-        if (lossReasonCountEl) {
-            lossReasonCountEl.textContent = lossReasonCount || 0;
-        }
-
-        // Load Hourly Report count
-        const { count: hourlyReportCount } = await window.supabase
-            .from("HourlyReport")
-            .select("*", { count: "exact", head: true });
+        if (lossReasonCountEl) lossReasonCountEl.textContent = lossResult.count || 0;
+        
         const hourlyReportCountEl = document.getElementById("pmsHourlyReportCount");
-        if (hourlyReportCountEl) {
-            hourlyReportCountEl.textContent = hourlyReportCount || 0;
-        }
+        if (hourlyReportCountEl) hourlyReportCountEl.textContent = hourlyResult.count || 0;
+        
     } catch (error) {
         console.error("Error loading PMS dashboard stats:", error);
     }
@@ -2344,6 +2328,17 @@ async function loadSettingsTable(page = 1) {
     const pagination = document.getElementById("settingsPagination");
 
     if (!loadingMessage) return;
+    
+    // Ensure Supabase is available
+    if (!window.supabase) {
+        console.error('Supabase not available in loadSettingsTable');
+        if (loadingMessage) loadingMessage.style.display = "none";
+        if (errorMessage) {
+            errorMessage.textContent = "Connection error. Please refresh the page.";
+            errorMessage.style.display = "block";
+        }
+        return;
+    }
 
     const pageSize = paginationState.settings.pageSize;
     const from = (page - 1) * pageSize;
@@ -3547,6 +3542,17 @@ async function loadShiftScheduleTable(page = 1) {
     if (pagination) pagination.style.display = "none";
     if (errorMessage) errorMessage.style.display = "none";
     if (emptyMessage) emptyMessage.style.display = "none";
+    
+    // Ensure Supabase is available
+    if (!window.supabase) {
+        console.error('Supabase not available in loadShiftScheduleTable');
+        if (loadingMessage) loadingMessage.style.display = "none";
+        if (errorMessage) {
+            errorMessage.textContent = "Connection error. Please refresh the page.";
+            errorMessage.style.display = "block";
+        }
+        return;
+    }
 
     try {
         const pageSize = paginationState.shiftSchedule.pageSize;
@@ -4233,6 +4239,17 @@ async function loadHourlyReportTable(page = 1) {
     if (pagination) pagination.style.display = "none";
     if (errorMessage) errorMessage.style.display = "none";
     if (emptyMessage) emptyMessage.style.display = "none";
+    
+    // Ensure Supabase is available
+    if (!window.supabase) {
+        console.error('Supabase not available in loadHourlyReportTable');
+        if (loadingMessage) loadingMessage.style.display = "none";
+        if (errorMessage) {
+            errorMessage.textContent = "Connection error. Please refresh the page.";
+            errorMessage.style.display = "block";
+        }
+        return;
+    }
 
     try {
         const pageSize = paginationState.hourlyReport.pageSize;
@@ -4266,10 +4283,11 @@ async function loadHourlyReportTable(page = 1) {
         // Otherwise show all (archived + real-time) - this is the default behavior
 
         // Apply ordering and pagination
+        // Note: Column names with spaces need to be quoted in Supabase
         const { data, error, count } = await query
-            .order("Work Day Date", { ascending: false })
-            .order("Shift", { ascending: true })
-            .order("Time", { ascending: true })
+            .order('"Work Day Date"', { ascending: false })
+            .order('"Shift"', { ascending: true })
+            .order('"Time"', { ascending: true })
             .range(from, to);
 
         if (error) throw error;
@@ -4466,7 +4484,7 @@ async function fetchHourlyReportLastUpdated() {
         const { data, error } = await window.supabase
             .from("HourlyReport")
             .select('updated_at, created_at, "Work Day Date"')
-            .order('updated_at', { ascending: false })
+            .order('"updated_at"', { ascending: false })
             .limit(1);
         
         if (error) throw error;
