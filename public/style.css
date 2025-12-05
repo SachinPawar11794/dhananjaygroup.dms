@@ -105,6 +105,11 @@ body {
     text-decoration: none;
     transition: all 0.2s ease;
     border-left: 3px solid transparent;
+    cursor: pointer;
+    -webkit-tap-highlight-color: rgba(37, 99, 235, 0.2);
+    touch-action: manipulation;
+    user-select: none;
+    -webkit-user-select: none;
 }
 
 .nav-item:hover {
@@ -208,6 +213,10 @@ body {
     font-size: 1.5rem;
     color: var(--text-primary);
     cursor: pointer;
+    -webkit-tap-highlight-color: rgba(37, 99, 235, 0.2);
+    touch-action: manipulation;
+    min-width: 44px;
+    min-height: 44px;
     padding: 0.5rem;
     margin-right: 1rem;
 }
@@ -2361,10 +2370,29 @@ body {
 
     .sidebar {
         transform: translateX(-100%);
+        z-index: 1001; /* Above modals when open */
     }
 
     .sidebar.open {
         transform: translateX(0);
+    }
+    
+    /* Mobile sidebar backdrop */
+    .sidebar.open::before {
+        content: '';
+        position: fixed;
+        top: 0;
+        left: 220px;
+        right: 0;
+        bottom: 0;
+        background: rgba(0, 0, 0, 0.3);
+        z-index: -1;
+    }
+    
+    /* Ensure nav items are clickable on mobile */
+    .sidebar .nav-item {
+        min-height: 44px; /* Apple's recommended touch target size */
+        padding: 0.75rem 1rem;
     }
 
     .sidebar-toggle {
