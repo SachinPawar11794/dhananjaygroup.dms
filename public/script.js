@@ -3204,6 +3204,10 @@ function showToast(message, type = "success") {
 async function checkAuthState() {
     console.log('🔐 checkAuthState() called...');
     
+    // Debug: Check localStorage for auth token
+    const authKeys = Object.keys(localStorage).filter(k => k.includes('auth') || k.includes('supabase'));
+    console.log('🔑 Auth keys in localStorage:', authKeys);
+    
     // Ensure Supabase is available
     if (!window.supabase || !window.supabase.auth) {
         console.error('Supabase not available in checkAuthState');
@@ -3223,6 +3227,10 @@ async function checkAuthState() {
         const { data: { session }, error } = await Promise.race([sessionPromise, timeoutPromise]);
         
         console.log('✅ getSession() completed', session ? 'with session' : 'no session');
+        if (session) {
+            console.log('👤 Session user:', session.user?.email);
+            console.log('🕐 Session expires at:', new Date(session.expires_at * 1000).toLocaleString());
+        }
         
         if (error) {
             console.error('Error getting session:', error);

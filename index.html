@@ -1740,8 +1740,16 @@
                 const supabaseUrl = "https://tzoloagoaysipwxuyldu.supabase.co";
                 const supabaseAnonKey = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InR6b2xvYWdvYXlzaXB3eHV5bGR1Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjM0MDM3MzIsImV4cCI6MjA3ODk3OTczMn0.BwC-uFnlkWtaGNVEee4VFuL-trsdz1aawDC77F3afWk";
                 
-                // Create Supabase client and make it globally available
-                window.supabase = supabase.createClient(supabaseUrl, supabaseAnonKey);
+                // Create Supabase client with explicit auth persistence
+                window.supabase = supabase.createClient(supabaseUrl, supabaseAnonKey, {
+                    auth: {
+                        persistSession: true,
+                        storageKey: 'sb-tzoloagoaysipwxuyldu-auth-token',
+                        storage: window.localStorage,
+                        autoRefreshToken: true,
+                        detectSessionInUrl: true
+                    }
+                });
                 
                 // Mark as ready
                 window.supabaseReady = true;
