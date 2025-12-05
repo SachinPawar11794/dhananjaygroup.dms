@@ -205,20 +205,34 @@ body {
     overflow-x: auto;
 }
 
-/* Menu Toggle Button */
+/* Menu Toggle Button (Hamburger) */
 .menu-toggle {
     display: none;
-    background: none;
+    background: var(--primary-color);
     border: none;
+    border-radius: 8px;
     font-size: 1.5rem;
-    color: var(--text-primary);
+    color: white;
     cursor: pointer;
-    -webkit-tap-highlight-color: rgba(37, 99, 235, 0.2);
+    -webkit-tap-highlight-color: rgba(37, 99, 235, 0.3);
     touch-action: manipulation;
     min-width: 44px;
     min-height: 44px;
-    padding: 0.5rem;
-    margin-right: 1rem;
+    width: 44px;
+    height: 44px;
+    padding: 0;
+    margin-right: 0.75rem;
+    z-index: 1002;
+    position: relative;
+    flex-shrink: 0;
+    align-items: center;
+    justify-content: center;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+.menu-toggle:active {
+    background: var(--primary-hover);
+    transform: scale(0.95);
 }
 
 /* Header */
@@ -2415,7 +2429,9 @@ body {
     }
 
     .menu-toggle {
-        display: block;
+        display: flex !important;
+        align-items: center;
+        justify-content: center;
     }
 
     .header-content {
