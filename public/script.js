@@ -1,20 +1,154 @@
+// ============================================================================
+// CACHE AND CONNECTION MANAGEMENT
+// ============================================================================
+
+// Clear cache and reload the app
+function clearCacheAndReload() {
+    // Show loading indicator
+    const statusDot = document.querySelector('.status-dot');
+    if (statusDot) {
+        statusDot.className = 'status-dot connecting';
+    }
+    
+    // Clear localStorage cache (preserve auth)
+    const authData = localStorage.getItem('sb-tzoloagoaysipwxuyldu-auth-token');
+    
+    // Clear all cached data
+    Object.keys(localStorage).forEach(key => {
+        if (!key.includes('auth')) {
+            localStorage.removeItem(key);
+        }
+    });
+    
+    // Clear sessionStorage
+    sessionStorage.clear();
+    
+    // Force reload from server (bypass cache)
+    window.location.reload(true);
+}
+
+// Monitor Supabase connection status
+let connectionCheckInterval = null;
+let lastConnectionCheck = Date.now();
+
+function updateConnectionStatus(isConnected) {
+    const statusDot = document.querySelector('.status-dot');
+    if (statusDot) {
+        statusDot.className = 'status-dot ' + (isConnected ? 'connected' : 'disconnected');
+        statusDot.parentElement.title = isConnected ? 'Connected to server' : 'Connection lost - Click refresh to retry';
+    }
+}
+
+async function checkConnection() {
+    // Check if Supabase is fully initialized
+    if (!window.supabase || !window.supabase.auth) {
+        // Supabase not ready yet - don't show error, just wait
+        console.log('Supabase not ready yet...');
+        return false;
+    }
+    
+    try {
+        // Simple health check - get current user (fast, cached)
+        const { data, error } = await window.supabase.auth.getSession();
+        
+        if (error) {
+            updateConnectionStatus(false);
+            return false;
+        }
+        
+        updateConnectionStatus(true);
+        lastConnectionCheck = Date.now();
+        return true;
+    } catch (err) {
+        console.warn('Connection check failed:', err.message);
+        updateConnectionStatus(false);
+        return false;
+    }
+}
+
+// Start connection monitoring
+function startConnectionMonitoring() {
+    // Only start if Supabase is ready
+    if (!window.supabase || !window.supabase.auth) {
+        console.log('Supabase not ready, skipping connection monitoring start');
+        return;
+    }
+    
+    // Check connection every 30 seconds
+    connectionCheckInterval = setInterval(async () => {
+        if (window.supabase && window.supabase.auth) {
+            await checkConnection();
+        }
+    }, 30000);
+    
+    // Also check when window regains focus
+    window.addEventListener('focus', async () => {
+        // Only check if last check was more than 10 seconds ago
+        if (Date.now() - lastConnectionCheck > 10000) {
+            if (window.supabase && window.supabase.auth) {
+                await checkConnection();
+            }
+        }
+    });
+    
+    // Check when coming back online
+    window.addEventListener('online', async () => {
+        console.log('Network online - checking connection...');
+        if (window.supabase && window.supabase.auth) {
+            await checkConnection();
+        }
+    });
+    
+    window.addEventListener('offline', () => {
+        console.log('Network offline');
+        updateConnectionStatus(false);
+    });
+}
+
+// Keyboard shortcut for refresh (Ctrl+Shift+R already works, but also add Ctrl+R override)
+document.addEventListener('keydown', (e) => {
+    // Ctrl+Shift+F5 for force refresh
+    if (e.ctrlKey && e.shiftKey && e.key === 'F5') {
+        e.preventDefault();
+        clearCacheAndReload();
+    }
+});
+
+// ============================================================================
+// MAIN INITIALIZATION
+// ============================================================================
+
 // Wait for DOM and Supabase to be ready
 window.addEventListener("DOMContentLoaded", () => {
     // Wait for Supabase to be initialized
+    // Increased timeout for slower mobile devices
     const checkSupabase = setInterval(() => {
         if (window.supabase && window.supabase.auth) {
             clearInterval(checkSupabase);
             console.log('✅ Supabase ready, initializing app...');
-            initializeApp();
+            if (!window.appInitialized) {
+                window.appInitialized = true;
+                initializeApp();
+            }
         } else {
             // Log if still waiting
             if (checkSupabase._count === undefined) {
                 checkSupabase._count = 0;
             }
             checkSupabase._count++;
-            if (checkSupabase._count > 50) { // 5 seconds timeout
+            // Increased timeout to 15 seconds for mobile devices (150 * 100ms = 15s)
+            if (checkSupabase._count > 150) {
                 clearInterval(checkSupabase);
-                console.error('❌ Supabase failed to load after 5 seconds. Check internet connection and Supabase configuration.');
+                console.error('❌ Supabase failed to load after 15 seconds.');
+                // Show user-friendly error
+                const loginPage = document.getElementById('loginPage');
+                if (loginPage) {
+                    loginPage.style.display = 'flex';
+                    const errorDiv = document.createElement('div');
+                    errorDiv.style.cssText = 'background: #fee2e2; color: #b91c1c; padding: 1rem; border-radius: 0.5rem; margin: 1rem; text-align: center;';
+                    errorDiv.innerHTML = '⚠️ Failed to connect to server. Please check your internet connection and <a href="javascript:location.reload()" style="color: #b91c1c; text-decoration: underline;">refresh the page</a>.';
+                    loginPage.querySelector('.login-right')?.prepend(errorDiv);
+                }
             }
         }
     }, 100);
@@ -33,6 +167,12 @@ window.addEventListener('supabaseReady', () => {
 });
 
 function initializeApp() {
+    // Start connection monitoring (only after Supabase is confirmed ready)
+    if (window.supabase && window.supabase.auth) {
+        startConnectionMonitoring();
+        checkConnection();
+    }
+    
     // Handle email confirmation callback from URL
     handleEmailConfirmation();
     

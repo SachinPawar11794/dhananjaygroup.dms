@@ -307,6 +307,82 @@ body {
     min-width: 0; /* Allow flex items to shrink if needed */
 }
 
+/* Refresh App Button */
+.btn-refresh {
+    background: transparent;
+    border: 1px solid var(--border);
+    border-radius: 50%;
+    width: 36px;
+    height: 36px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    font-size: 1.1rem;
+    transition: all 0.2s ease;
+    color: var(--text-secondary);
+}
+
+.btn-refresh:hover {
+    background: var(--surface);
+    border-color: var(--primary);
+    color: var(--primary);
+    transform: rotate(180deg);
+}
+
+.btn-refresh:active {
+    transform: rotate(360deg);
+}
+
+/* Connection Status Indicator */
+.connection-status {
+    display: flex;
+    align-items: center;
+    padding: 0.25rem 0.5rem;
+    border-radius: 1rem;
+    background: var(--surface);
+    border: 1px solid var(--border);
+}
+
+.status-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    animation: pulse 2s infinite;
+}
+
+.status-dot.connected {
+    background: #10b981;
+    box-shadow: 0 0 6px #10b981;
+}
+
+.status-dot.disconnected {
+    background: #ef4444;
+    box-shadow: 0 0 6px #ef4444;
+    animation: pulse-error 1s infinite;
+}
+
+.status-dot.connecting {
+    background: #f59e0b;
+    box-shadow: 0 0 6px #f59e0b;
+    animation: pulse-warning 0.5s infinite;
+}
+
+@keyframes pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.6; }
+}
+
+@keyframes pulse-error {
+    0%, 100% { opacity: 1; transform: scale(1); }
+    50% { opacity: 0.5; transform: scale(1.2); }
+}
+
+@keyframes pulse-warning {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.3; }
+}
+
 .user-menu {
     display: flex;
     align-items: center;
