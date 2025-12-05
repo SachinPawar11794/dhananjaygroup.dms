@@ -4834,6 +4834,7 @@ function updateHourlyReportLastUpdated(data) {
 // =============================================
 
 let countdownInterval = null;
+let lastAutoRefreshMinute = -1;
 
 // Start the countdown timer for next auto-update
 function startAutoUpdateCountdown() {
@@ -4844,6 +4845,9 @@ function startAutoUpdateCountdown() {
     if (countdownInterval) {
         clearInterval(countdownInterval);
     }
+    
+    // Reset last refresh minute
+    lastAutoRefreshMinute = -1;
     
     // Update countdown every second
     countdownInterval = setInterval(() => {
@@ -4861,7 +4865,6 @@ function updateCountdown(countdownEl) {
     const seconds = now.getSeconds();
     
     // Calculate next 5-minute mark
-    // e.g., if it's 10:02:30, next run is at 10:05:00
     const minutesUntilNext = 5 - (minutes % 5);
     let totalSecondsUntilNext = (minutesUntilNext * 60) - seconds;
     
@@ -4891,6 +4894,23 @@ function updateCountdown(countdownEl) {
             countdownEl.style.animation = 'none';
         }
     }
+    
+    // AUTO-REFRESH: When countdown reaches ~5 seconds after a 5-minute mark,
+    // refresh the table to show new data from the scheduled job
+    const currentFiveMinMark = Math.floor(minutes / 5);
+    if (totalSecondsUntilNext >= 295 && totalSecondsUntilNext <= 300) {
+        // We just passed a 5-minute mark (within first 5 seconds)
+        if (lastAutoRefreshMinute !== currentFiveMinMark) {
+            lastAutoRefreshMinute = currentFiveMinMark;
+            console.log('🔄 Auto-refreshing hourly report after scheduled update...');
+            
+            // Refresh the hourly report table
+            const hourlyReportPage = document.getElementById("hourlyReportPage");
+            if (hourlyReportPage && hourlyReportPage.classList.contains("active")) {
+                loadHourlyReportTable(paginationState.hourlyReport.currentPage || 1);
+            }
+        }
+    }
 }
 
 // Stop the countdown timer
@@ -4899,6 +4919,7 @@ function stopAutoUpdateCountdown() {
         clearInterval(countdownInterval);
         countdownInterval = null;
     }
+    lastAutoRefreshMinute = -1;
 }
 
 // Initialize countdown when hourly report page is shown
