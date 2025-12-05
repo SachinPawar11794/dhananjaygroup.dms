@@ -1483,8 +1483,11 @@
                             <a href="#" class="forgot-password" id="forgotPasswordLink">Forgot password?</a>
                         </div>
                         <div id="loginError" class="error-message" style="display: none;"></div>
+                        <div id="loginConnecting" class="connecting-message" style="display: none;">
+                            <span class="spinner-small"></span> Connecting to server...
+                        </div>
                         <div class="form-actions">
-                            <button type="submit" class="btn-login">Login</button>
+                            <button type="submit" class="btn-login" id="loginSubmitBtn">Login</button>
                         </div>
                         <div class="login-switch">
                             <span>Don't have an account? </span>
@@ -1724,29 +1727,54 @@
     <script src="https://cdn.jsdelivr.net/npm/choices.js/public/assets/scripts/choices.min.js"></script>
 
     <!-- Application Scripts -->
-    <!-- Load Supabase via CDN first - Must be available before script.js -->
-    <script type="module">
-        import { createClient } from "https://cdn.jsdelivr.net/npm/@supabase/supabase-js/+esm";
+    
+    <!-- Load Supabase UMD version (works on all browsers including mobile) -->
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+    
+    <!-- Initialize Supabase after UMD script loads -->
+    <script>
+        // Wait for Supabase UMD to be available
+        function initSupabase() {
+            if (typeof supabase !== 'undefined' && supabase.createClient) {
+                // Supabase Configuration
+                const supabaseUrl = "https://tzoloagoaysipwxuyldu.supabase.co";
+                const supabaseAnonKey = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InR6b2xvYWdvYXlzaXB3eHV5bGR1Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjM0MDM3MzIsImV4cCI6MjA3ODk3OTczMn0.BwC-uFnlkWtaGNVEee4VFuL-trsdz1aawDC77F3afWk";
+                
+                // Create Supabase client and make it globally available
+                window.supabase = supabase.createClient(supabaseUrl, supabaseAnonKey);
+                
+                // Mark as ready
+                window.supabaseReady = true;
+                
+                // Dispatch event when ready
+                window.dispatchEvent(new CustomEvent('supabaseReady'));
+                
+                console.log('✅ Supabase initialized via UMD (works on all browsers)');
+                return true;
+            }
+            return false;
+        }
         
-        // Supabase Configuration
-        const supabaseUrl = "https://tzoloagoaysipwxuyldu.supabase.co";
-        const supabaseAnonKey = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InR6b2xvYWdvYXlzaXB3eHV5bGR1Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjM0MDM3MzIsImV4cCI6MjA3ODk3OTczMn0.BwC-uFnlkWtaGNVEee4VFuL-trsdz1aawDC77F3afWk";
-        
-        // Create Supabase client and make it globally available
-        window.supabase = createClient(supabaseUrl, supabaseAnonKey);
-        
-        // Mark as ready
-        window.supabaseReady = true;
-        
-        // Dispatch event when ready
-        window.dispatchEvent(new CustomEvent('supabaseReady'));
-        
-        console.log('✅ Supabase initialized and available globally');
+        // Try immediately
+        if (!initSupabase()) {
+            // If not ready, try again after a short delay
+            let attempts = 0;
+            const maxAttempts = 50; // 5 seconds max
+            const checkInterval = setInterval(() => {
+                attempts++;
+                if (initSupabase() || attempts >= maxAttempts) {
+                    clearInterval(checkInterval);
+                    if (attempts >= maxAttempts && !window.supabaseReady) {
+                        console.error('❌ Failed to load Supabase after 5 seconds');
+                    }
+                }
+            }, 100);
+        }
     </script>
     
     <!-- Legacy script.js - Contains all application functionality -->
     <!-- Cache version: Update ?v= parameter when making JS changes -->
-    <script src="script.js?v=20251205"></script>
+    <script src="script.js?v=20251205b"></script>
 
     <!-- Modal Overlay for User Management -->
     <div id="userModalOverlay" class="modal-overlay">

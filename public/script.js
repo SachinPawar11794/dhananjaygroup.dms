@@ -120,12 +120,30 @@ document.addEventListener('keydown', (e) => {
 
 // Wait for DOM and Supabase to be ready
 window.addEventListener("DOMContentLoaded", () => {
+    // Show connecting message on login page
+    const loginConnecting = document.getElementById('loginConnecting');
+    const loginSubmitBtn = document.getElementById('loginSubmitBtn');
+    
+    if (loginConnecting) loginConnecting.style.display = 'flex';
+    if (loginSubmitBtn) {
+        loginSubmitBtn.disabled = true;
+        loginSubmitBtn.textContent = 'Connecting...';
+    }
+    
     // Wait for Supabase to be initialized
     // Increased timeout for slower mobile devices
     const checkSupabase = setInterval(() => {
         if (window.supabase && window.supabase.auth) {
             clearInterval(checkSupabase);
             console.log('✅ Supabase ready, initializing app...');
+            
+            // Hide connecting message and enable login
+            if (loginConnecting) loginConnecting.style.display = 'none';
+            if (loginSubmitBtn) {
+                loginSubmitBtn.disabled = false;
+                loginSubmitBtn.textContent = 'Login';
+            }
+            
             if (!window.appInitialized) {
                 window.appInitialized = true;
                 initializeApp();
@@ -140,14 +158,17 @@ window.addEventListener("DOMContentLoaded", () => {
             if (checkSupabase._count > 150) {
                 clearInterval(checkSupabase);
                 console.error('❌ Supabase failed to load after 15 seconds.');
-                // Show user-friendly error
-                const loginPage = document.getElementById('loginPage');
-                if (loginPage) {
-                    loginPage.style.display = 'flex';
-                    const errorDiv = document.createElement('div');
-                    errorDiv.style.cssText = 'background: #fee2e2; color: #b91c1c; padding: 1rem; border-radius: 0.5rem; margin: 1rem; text-align: center;';
-                    errorDiv.innerHTML = '⚠️ Failed to connect to server. Please check your internet connection and <a href="javascript:location.reload()" style="color: #b91c1c; text-decoration: underline;">refresh the page</a>.';
-                    loginPage.querySelector('.login-right')?.prepend(errorDiv);
+                
+                // Update connecting message to error
+                if (loginConnecting) {
+                    loginConnecting.innerHTML = '⚠️ Failed to connect. <a href="javascript:location.reload()" style="color: inherit; text-decoration: underline;">Tap to retry</a>';
+                    loginConnecting.style.background = '#fef2f2';
+                    loginConnecting.style.color = '#b91c1c';
+                    loginConnecting.style.borderLeftColor = '#b91c1c';
+                }
+                if (loginSubmitBtn) {
+                    loginSubmitBtn.disabled = true;
+                    loginSubmitBtn.textContent = 'Connection Failed';
                 }
             }
         }
@@ -3109,6 +3130,16 @@ async function handleLogin() {
         errorDiv.textContent = "";
     }
 
+    // Check if Supabase is ready
+    if (!window.supabase || !window.supabase.auth) {
+        if (errorDiv) {
+            errorDiv.textContent = "Please wait, connecting to server... Try again in a few seconds.";
+            errorDiv.style.display = "block";
+        }
+        console.error('Supabase not ready for login');
+        return;
+    }
+
     try {
         const { data, error } = await window.supabase.auth.signInWithPassword({
             email,
@@ -3206,6 +3237,16 @@ async function handleSignup() {
     if (errorDiv) {
         errorDiv.style.display = "none";
         errorDiv.textContent = "";
+    }
+
+    // Check if Supabase is ready
+    if (!window.supabase || !window.supabase.auth) {
+        if (errorDiv) {
+            errorDiv.textContent = "Please wait, connecting to server... Try again in a few seconds.";
+            errorDiv.style.display = "block";
+        }
+        console.error('Supabase not ready for signup');
+        return;
     }
 
     // Validate passwords match
@@ -3336,6 +3377,14 @@ async function handleSignup() {
 }
 
 async function handleLogout() {
+    // Check if Supabase is ready
+    if (!window.supabase || !window.supabase.auth) {
+        console.error('Supabase not ready for logout');
+        // Just update UI anyway
+        updateUIForAuth(null);
+        return;
+    }
+    
     try {
         const { error } = await window.supabase.auth.signOut();
         
