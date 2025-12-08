@@ -25,12 +25,17 @@
  const char* supabaseAnonKey = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InR6b2xvYWdvYXlzaXB3eHV5bGR1Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjM0MDM3MzIsImV4cCI6MjA3ODk3OTczMn0.BwC-uFnlkWtaGNVEee4VFuL-trsdz1aawDC77F3afWk";
  const char* iotDatabaseTable = "IoT%20Database";  // URL-encoded table name
  const char* settingsTable = "settings";
+ const char* shiftScheduleTable = "ShiftSchedule"; // Supabase shift schedule table
+ // Optional: leave empty when shift schedule uses the same plant value as device.
+ const char* shiftSchedulePlantFallback = "";
  
  // ============================================================================
  // MACHINE CONFIGURATION
  // ============================================================================
  const char* machineNo = "10000707_500_SUMMITO"; // Must match settings.machine
  const char* plant = "DMCPLI_3001";              // Must match settings.plant
+ const long gmtOffsetSeconds = 19800;            // UTC+5:30 for shift/time calculations
+ const int daylightOffsetSeconds = 0;
  
  // ============================================================================
  // STROKE DETECTION CONFIGURATION
@@ -85,6 +90,16 @@
  unsigned long lastReconnectAttempt = 0;
  TaskHandle_t supabaseTaskHandle;
  
+ // Shift schedule cache
+ struct ShiftSlot {
+   int startMinutes; // minutes from 00:00
+   int endMinutes;   // minutes from 00:00, may be >= 1440 when wrapping
+   String shiftCode;
+ };
+ ShiftSlot shiftSlots[32];
+ int shiftSlotCount = 0;
+ unsigned long lastShiftFetch = 0;
+ 
  // ============================================================================
  // SETTINGS DATA STRUCTURE
  // ============================================================================
@@ -115,6 +130,33 @@
    return (long) value.toFloat(); // handles "4.00" -> 4
  }
  
+ bool parseTimeRange(const String& range, int& startMins, int& endMins) {
+   // Expected format: "HH:MM - HH:MM"
+   int dash = range.indexOf('-');
+   if (dash < 0) return false;
+   String left = range.substring(0, dash);
+   String right = range.substring(dash + 1);
+   left.trim();
+   right.trim();
+   int colonL = left.indexOf(':');
+   int colonR = right.indexOf(':');
+   if (colonL < 0 || colonR < 0) return false;
+   int lh = left.substring(0, colonL).toInt();
+   int lm = left.substring(colonL + 1).toInt();
+   int rh = right.substring(0, colonR).toInt();
+   int rm = right.substring(colonR + 1).toInt();
+   startMins = lh * 60 + lm;
+   endMins = rh * 60 + rm;
+   if (endMins < startMins) endMins += 24 * 60; // wrap past midnight
+   return true;
+ }
+ 
+ String formatDateYMD(const tm& t) {
+   char buf[11];
+   snprintf(buf, sizeof(buf), "%04d-%02d-%02d", t.tm_year + 1900, t.tm_mon + 1, t.tm_mday);
+   return String(buf);
+ }
+ 
  void connectToWiFi() {
    if (WiFi.status() != WL_CONNECTED) {
      Serial.println("Attempting to connect to Wi-Fi...");
@@ -129,15 +171,128 @@
    }
  }
  
- String getIsoTimestamp() {
+ String getIsoTimestamp(time_t now) {
    struct tm timeinfo;
-   if (!getLocalTime(&timeinfo, 2000)) {
-     Serial.println("Failed to get NTP time");
-     return "";
-   }
+   gmtime_r(&now, &timeinfo); // UTC
    char buffer[25];
    strftime(buffer, sizeof(buffer), "%Y-%m-%dT%H:%M:%SZ", &timeinfo); // UTC
    return String(buffer);
+ }
+ 
+ bool fetchShiftSchedule(const char* plantForSchedule = nullptr) {
+   if (WiFi.status() != WL_CONNECTED) {
+     Serial.println("Wi-Fi not connected. Cannot fetch shift schedule.");
+     return false;
+   }
+   const char* plantFilter = plantForSchedule ? plantForSchedule : plant;
+   HTTPClient http;
+   String url = String(supabaseUrl) + "/rest/v1/" + shiftScheduleTable +
+                "?select=Shift,Time,Plant" +
+                "&Plant=eq." + plantFilter;
+ 
+   Serial.print("Fetching shift schedule from: ");
+   Serial.println(url);
+ 
+   http.begin(url);
+   addSupabaseHeaders(http);
+ 
+   int code = http.GET();
+   if (code <= 0) {
+     Serial.print("Error fetching shift schedule: ");
+     Serial.println(code);
+     http.end();
+     return false;
+   }
+ 
+   String response = http.getString();
+   Serial.print("Shift schedule response: ");
+   Serial.println(response);
+ 
+   StaticJsonDocument<4096> doc;
+   if (deserializeJson(doc, response)) {
+     Serial.println("Failed to parse shift schedule");
+     http.end();
+     return false;
+   }
+   if (!doc.is<JsonArray>()) {
+     Serial.println("Shift schedule not array");
+     http.end();
+     return false;
+   }
+ 
+   shiftSlotCount = 0;
+   for (JsonObject item : doc.as<JsonArray>()) {
+     if (!item.containsKey("Time") || !item.containsKey("Shift")) continue;
+     int sM = 0, eM = 0;
+     if (!parseTimeRange(item["Time"].as<String>(), sM, eM)) continue;
+     if (shiftSlotCount < (int)(sizeof(shiftSlots) / sizeof(shiftSlots[0]))) {
+       shiftSlots[shiftSlotCount].startMinutes = sM;
+       shiftSlots[shiftSlotCount].endMinutes = eM;
+       shiftSlots[shiftSlotCount].shiftCode = item["Shift"].as<String>();
+       shiftSlotCount++;
+     }
+   }
+   http.end();
+   lastShiftFetch = millis();
+   Serial.print("Loaded shift slots: ");
+   Serial.println(shiftSlotCount);
+   if (shiftSlotCount == 0) {
+     Serial.println("WARNING: No shift slots loaded. Check ShiftSchedule data/plant filter.");
+   }
+   return shiftSlotCount > 0;
+ }
+ 
+ bool resolveShiftAndWorkday(time_t nowUtc, String& shiftOut, String& workdayOut) {
+   struct tm localTime;
+   if (!localtime_r(&nowUtc, &localTime)) {
+     Serial.println("Failed to get local time for shift");
+     return false;
+   }
+   int minutes = localTime.tm_hour * 60 + localTime.tm_min;
+ 
+   // Work day date: day starts at 07:00; before 07:00 belongs to previous day
+   tm workday = localTime;
+   if (minutes < 7 * 60) {
+     // move to previous day
+     time_t tnow = mktime(&localTime);
+     tnow -= 24 * 60 * 60;
+     localtime_r(&tnow, &workday);
+   }
+   workdayOut = formatDateYMD(workday);
+ 
+   // Resolve shift from cached slots
+   shiftOut = "NA";
+   int minutesAlt = minutes + 24 * 60; // for wrapped ranges
+   Serial.print("Shift resolve - local time: ");
+   Serial.print(localTime.tm_hour);
+   Serial.print(":");
+   Serial.print(localTime.tm_min);
+   Serial.print(" (");
+   Serial.print(minutes);
+   Serial.print(" mins), slots=");
+   Serial.println(shiftSlotCount);
+   for (int i = 0; i < shiftSlotCount; i++) {
+     ShiftSlot& slot = shiftSlots[i];
+     Serial.print("  slot ");
+     Serial.print(i);
+     Serial.print(": ");
+     Serial.print(slot.startMinutes);
+     Serial.print("->");
+     Serial.print(slot.endMinutes);
+     Serial.print(" shift ");
+     Serial.println(slot.shiftCode);
+     if ((minutes >= slot.startMinutes && minutes < slot.endMinutes) ||
+         (minutesAlt >= slot.startMinutes && minutesAlt < slot.endMinutes)) {
+       shiftOut = slot.shiftCode;
+       Serial.print("Matched shift: ");
+       Serial.println(shiftOut);
+       break;
+     }
+   }
+   if (shiftOut == "NA") {
+     Serial.println("No matching shift found; sending NA.");
+   }
+   return true;
  }
  
  // ============================================================================
@@ -451,7 +606,9 @@
    StaticJsonDocument<512> doc;
    JsonObject row = doc.to<JsonObject>();
  
-   String isoTime = getIsoTimestamp();
+   time_t now;
+   time(&now);
+   String isoTime = getIsoTimestamp(now);
    if (isoTime.length() > 0) {
      row["Timestamp"] = isoTime;
    }
@@ -471,6 +628,11 @@
    row["Machine No."] = machineNo;
    row["Value"] = totalStrokes;
    row["Plant"] = plant;
+   String shiftCode, workdayDate;
+   if (resolveShiftAndWorkday(now, shiftCode, workdayDate)) {
+     row["Shift"] = shiftCode;
+     row["Work Day Date"] = workdayDate;
+   }
  
    String jsonString;
    serializeJson(doc, jsonString);
@@ -513,6 +675,14 @@
        interrupts();
  
        if (WiFi.status() == WL_CONNECTED) {
+         // Refresh shift schedule once per hour
+         if (shiftSlotCount == 0 || (millis() - lastShiftFetch) > 3600000UL) {
+           if (!fetchShiftSchedule()) {
+             if (strlen(shiftSchedulePlantFallback) > 0 && String(shiftSchedulePlantFallback) != String(plant)) {
+               fetchShiftSchedule(shiftSchedulePlantFallback);
+             }
+           }
+         }
          if (!fetchSettingsData()) {
            Serial.println("Failed to fetch settings before send");
            noInterrupts();
@@ -594,9 +764,15 @@
    }
    Serial.println("=== END SWITCH TYPE CONFIGURATION ===");
  
-   configTime(0, 0, "pool.ntp.org", "time.nist.gov", "time.google.com");
+   configTime(gmtOffsetSeconds, daylightOffsetSeconds, "pool.ntp.org", "time.nist.gov", "time.google.com");
  
    connectToWiFi();
+   // Try device plant first; if none found, fall back to alternate plant name if provided
+   if (!fetchShiftSchedule()) {
+     if (strlen(shiftSchedulePlantFallback) > 0 && String(shiftSchedulePlantFallback) != String(plant)) {
+       fetchShiftSchedule(shiftSchedulePlantFallback);
+     }
+   }
    fetchSettingsData();
    updateDisplay();
  
