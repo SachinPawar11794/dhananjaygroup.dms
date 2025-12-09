@@ -275,7 +275,14 @@ BEGIN
     deleted AS (
         DELETE FROM "HourlyReport" hr
         USING distinct_dates d
-        WHERE hr."IoT Date" = d.iot_date
+        WHERE (
+            -- Match date-typed rows
+            hr."IoT Date" = d.iot_date
+            -- Match text-typed or formatted rows (legacy)
+            OR hr."IoT Date"::text = to_char(d.iot_date, 'YYYY-MM-DD')
+            OR hr."IoT Date"::text = to_char(d.iot_date, 'DD/MM/YYYY')
+            OR hr."IoT Date"::text = to_char(d.iot_date, 'MM/DD/YYYY')
+        )
           AND COALESCE(hr.archived, false) = false
         RETURNING 1
     )

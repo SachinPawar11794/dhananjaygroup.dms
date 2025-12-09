@@ -218,6 +218,8 @@ const navigationHistory = {
     }
 };
 
+let suppressPopstateNav = false;
+
 // Update breadcrumb with clickable path
 function updateBreadcrumb(pathArray) {
     const pagePath = document.getElementById("pagePath");
@@ -252,12 +254,34 @@ function updateBreadcrumb(pathArray) {
 
 // Navigate to a hash with history management
 function navigateToHash(hash, addToHistory = true) {
+    if (suppressPopstateNav) {
+        // Skip navigation actions when we're forcing a hash change (e.g., back guard)
+        suppressPopstateNav = false;
+        return;
+    }
     if (!hash) return;
     
     // Remove # if present
     const cleanHash = hash.startsWith("#") ? hash.substring(1) : hash;
     const fullHash = "#" + cleanHash;
     
+    // PMS back-navigation guard: if navigating away from PMS subpages to outside PMS,
+    // push PMS dashboard first so browser Back lands on PMS.
+    const currentHash = window.location.hash || "";
+    const currentModule = currentHash.replace(/^#/, "").split("/")[0];
+    const targetModule = cleanHash.split("/")[0];
+    if (currentModule === "pms" && targetModule !== "pms") {
+        window.history.pushState(
+            {
+                hash: "#pms/dashboard",
+                path: [{ label: "PMS", hash: "#pms/dashboard" }, { label: "Dashboard" }],
+                title: "PMS"
+            },
+            "PMS",
+            "#pms/dashboard"
+        );
+    }
+
     // Parse the hash to determine navigation
     const hashParts = cleanHash.split("/");
     const module = hashParts[0];
@@ -456,8 +480,29 @@ function navigateToHash(hash, addToHistory = true) {
     }
 }
 
+// Ensure back navigation stays within PMS; if outside, jump to PMS dashboard
+window.addEventListener("popstate", () => {
+    const hash = window.location.hash || "";
+    if (!hash.startsWith("#pms/")) {
+        suppressPopstateNav = true;
+        // Force hash change to PMS dashboard; navigateToHash will be suppressed once
+        window.location.replace("#pms/dashboard");
+    }
+});
+
 // Handle browser back/forward buttons
 function handlePopState(event) {
+    const prevHash = window.location.hash || "";
+    const prevModule = prevHash.replace(/^#/, "").split("/")[0];
+    const targetHash = (event.state && event.state.hash) ? event.state.hash : (window.location.hash || "");
+    const targetModule = targetHash.replace(/^#/, "").split("/")[0];
+
+    // If navigating back from a PMS subpage to a non-PMS target, force PMS dashboard
+    if (prevModule === "pms" && targetModule !== "pms") {
+        navigateToHash("#pms/dashboard", false);
+        return;
+    }
+
     if (event.state && event.state.hash) {
         // Navigate without adding to history (since browser already did)
         navigateToHash(event.state.hash, false);
@@ -4105,7 +4150,7 @@ async function loadHourlyReportTable(page = 1) {
 
         // Apply filters (IoT Date is now DATE type - use YYYY-MM-DD format)
         if (dateFilter) {
-            query = query.eq("IoT Date", dateFilter);
+            query = query.eq("Work Day Date", dateFilter);
         }
         if (shiftFilter) {
             query = query.eq("Shift", shiftFilter);
