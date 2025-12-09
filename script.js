@@ -252,38 +252,23 @@ function updateBreadcrumb(pathArray) {
     });
 }
 
-// Navigate to a hash with history management
+function getCurrentRoute() {
+    const path = window.location.pathname.replace(/^\//, "");
+    return path || "pms/dashboard";
+}
+
+// Navigate to a route with history management (path-based)
 function navigateToHash(hash, addToHistory = true) {
-    if (suppressPopstateNav) {
-        // Skip navigation actions when we're forcing a hash change (e.g., back guard)
-        suppressPopstateNav = false;
-        return;
-    }
     if (!hash) return;
     
-    // Remove # if present
-    const cleanHash = hash.startsWith("#") ? hash.substring(1) : hash;
-    const fullHash = "#" + cleanHash;
+    // Normalize route: strip # or leading slash
+    const routeKey = hash.startsWith("#")
+        ? hash.substring(1)
+        : hash.replace(/^\//, "");
+    const pathToPush = "/" + routeKey;
     
-    // PMS back-navigation guard: if navigating away from PMS subpages to outside PMS,
-    // push PMS dashboard first so browser Back lands on PMS.
-    const currentHash = window.location.hash || "";
-    const currentModule = currentHash.replace(/^#/, "").split("/")[0];
-    const targetModule = cleanHash.split("/")[0];
-    if (currentModule === "pms" && targetModule !== "pms") {
-        window.history.pushState(
-            {
-                hash: "#pms/dashboard",
-                path: [{ label: "PMS", hash: "#pms/dashboard" }, { label: "Dashboard" }],
-                title: "PMS"
-            },
-            "PMS",
-            "#pms/dashboard"
-        );
-    }
-
     // Parse the hash to determine navigation
-    const hashParts = cleanHash.split("/");
+    const hashParts = routeKey.split("/");
     const module = hashParts[0];
     const page = hashParts[1] || "dashboard";
     
@@ -300,7 +285,7 @@ function navigateToHash(hash, addToHistory = true) {
     pages.forEach(p => p.classList.remove("active"));
     
     // Clear IoT auto-refresh when leaving IoT page
-    if (cleanHash !== "pms/iot-data" && iotDataRefreshInterval) {
+    if (routeKey !== "pms/iot-data" && iotDataRefreshInterval) {
         clearInterval(iotDataRefreshInterval);
         iotDataRefreshInterval = null;
     }
@@ -466,12 +451,21 @@ function navigateToHash(hash, addToHistory = true) {
     if (pageTitle) pageTitle.textContent = title;
     updateBreadcrumb(breadcrumbPath);
     
-    // Update URL and history
-    if (addToHistory) {
-        navigationHistory.push(fullHash, breadcrumbPath, title);
-        window.history.pushState({ hash: fullHash, path: breadcrumbPath, title }, title, fullHash);
-    } else {
-        window.history.replaceState({ hash: fullHash, path: breadcrumbPath, title }, title, fullHash);
+    // Update URL and history using path (no hash)
+    const isSamePath = window.location.pathname === pathToPush && window.location.search === "";
+    const currentPath = window.location.pathname || "";
+    if (addToHistory === true) {
+        if (!isSamePath) {
+            const shouldReplace = currentPath === pathToPush;
+    navigationHistory.push(routeKey, breadcrumbPath, title);
+            if (shouldReplace) {
+                window.history.replaceState({ hash: routeKey, path: breadcrumbPath, title }, title, pathToPush);
+            } else {
+                window.history.pushState({ hash: routeKey, path: breadcrumbPath, title }, title, pathToPush);
+            }
+        }
+    } else if (addToHistory === "replace") {
+        window.history.replaceState({ hash: routeKey, path: breadcrumbPath, title }, title, pathToPush);
     }
     
     // Close sidebar on mobile
@@ -480,44 +474,10 @@ function navigateToHash(hash, addToHistory = true) {
     }
 }
 
-// Ensure back navigation stays within PMS; if outside, jump to PMS dashboard
-window.addEventListener("popstate", () => {
-    const hash = window.location.hash || "";
-    if (!hash.startsWith("#pms/")) {
-        suppressPopstateNav = true;
-        // Force hash change to PMS dashboard; navigateToHash will be suppressed once
-        window.location.replace("#pms/dashboard");
-    }
-});
-
 // Handle browser back/forward buttons
 function handlePopState(event) {
-    const prevHash = window.location.hash || "";
-    const prevModule = prevHash.replace(/^#/, "").split("/")[0];
-    const targetHash = (event.state && event.state.hash) ? event.state.hash : (window.location.hash || "");
-    const targetModule = targetHash.replace(/^#/, "").split("/")[0];
-
-    // If navigating back from a PMS subpage to a non-PMS target, force PMS dashboard
-    if (prevModule === "pms" && targetModule !== "pms") {
-        navigateToHash("#pms/dashboard", false);
-        return;
-    }
-
-    if (event.state && event.state.hash) {
-        // Navigate without adding to history (since browser already did)
-        navigateToHash(event.state.hash, false);
-        // Update history stack index
-        const index = navigationHistory.stack.findIndex(item => item.hash === event.state.hash);
-        if (index !== -1) {
-            navigationHistory.currentIndex = index;
-        }
-    } else {
-        // Fallback: parse current hash
-        const currentHash = window.location.hash;
-        if (currentHash) {
-            navigateToHash(currentHash, false);
-        }
-    }
+    const route = getCurrentRoute();
+    navigateToHash(route, false);
 }
 
 // Initialize browser history on page load
@@ -525,26 +485,15 @@ function initializeBrowserHistory() {
     // Listen for back/forward button clicks
     window.addEventListener("popstate", handlePopState);
     
-    // Handle initial hash on page load
-    if (window.location.hash && window.location.hash !== "#") {
+    // Handle initial route on page load (path-based)
+    const initialRoute = getCurrentRoute();
         const state = {
-            hash: window.location.hash,
+        hash: "#" + initialRoute,
             path: [],
             title: ""
         };
-        window.history.replaceState(state, "", window.location.hash);
-        navigateToHash(window.location.hash, false);
-    } else {
-        // Default to PMS dashboard if no hash
-        const defaultHash = "#pms/dashboard";
-        const state = {
-            hash: defaultHash,
-            path: [{ label: "PMS", hash: defaultHash }, { label: "Dashboard" }],
-            title: "PMS"
-        };
-        window.history.replaceState(state, "PMS", defaultHash);
-        navigateToHash(defaultHash, false);
-    }
+    window.history.replaceState(state, "", "/" + initialRoute);
+    navigateToHash(initialRoute, false);
 }
 
 // Load distinct Plant and Machine values for IoT filters
@@ -667,17 +616,17 @@ function initializeNavigation() {
 
             // Navigate using new navigation system
             if (targetPage === "pms-dashboard") {
-                navigateToHash("#pms/dashboard", true);
+                navigateToHash("/pms/dashboard", true);
             } else if (targetPage === "settings") {
-                navigateToHash("#pms/settings", true);
+                navigateToHash("/pms/settings", true);
             } else if (targetPage === "process-master") {
-                navigateToHash("#pms/process-master", true);
+                navigateToHash("/pms/process-master", true);
             } else if (targetPage === "workcenter-master") {
-                navigateToHash("#pms/workcenter-master", true);
+                navigateToHash("/pms/workcenter-master", true);
             } else if (targetPage === "user-management") {
-                navigateToHash("#user-management", true);
+                navigateToHash("/user-management", true);
             } else if (targetPage === "iot-data") {
-                navigateToHash("#pms/iot-data", true);
+                navigateToHash("/pms/iot-data", true);
             }
             
             // Close sidebar on mobile after navigation
@@ -713,19 +662,19 @@ function initializeNavigation() {
 
             // Navigate using new navigation system
             if (targetPage === "settings") {
-                navigateToHash("#pms/settings", true);
+                navigateToHash("/pms/settings", true);
             } else if (targetPage === "process-master") {
-                navigateToHash("#pms/process-master", true);
+                navigateToHash("/pms/process-master", true);
             } else if (targetPage === "workcenter-master") {
-                navigateToHash("#pms/workcenter-master", true);
+                navigateToHash("/pms/workcenter-master", true);
             } else if (targetPage === "iot-data") {
-                navigateToHash("#pms/iot-data", true);
+                navigateToHash("/pms/iot-data", true);
             } else if (targetPage === "shift-schedule") {
-                navigateToHash("#pms/shift-schedule", true);
+                navigateToHash("/pms/shift-schedule", true);
             } else if (targetPage === "loss-reason") {
-                navigateToHash("#pms/loss-reason", true);
+                navigateToHash("/pms/loss-reason", true);
             } else if (targetPage === "hourly-report") {
-                navigateToHash("#pms/hourly-report", true);
+                navigateToHash("/pms/hourly-report", true);
             }
         });
     });
@@ -4320,15 +4269,15 @@ async function generateHourlyReport() {
 
         const created = data?.reports_created ?? 0;
         showToast(`Hourly report generated. ${created} records created.`, "success");
-
-        // Reload table and update dashboard
-        loadHourlyReportTable(1);
-        loadPMSDashboardStats();
-        
-        // Reload settings table
-        const currentPage = document.getElementById("settingsPage")?.getAttribute("data-page") || 
-                           paginationState.settings.currentPage || 1;
-        loadSettingsTable(parseInt(currentPage));
+            
+            // Reload table and update dashboard
+            loadHourlyReportTable(1);
+            loadPMSDashboardStats();
+            
+            // Reload settings table
+            const currentPage = document.getElementById("settingsPage")?.getAttribute("data-page") || 
+                               paginationState.settings.currentPage || 1;
+            loadSettingsTable(parseInt(currentPage));
     } catch (error) {
         console.error("Error generating hour group production report:", error);
         showToast("Error generating report: " + error.message, "error");
