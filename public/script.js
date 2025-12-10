@@ -146,35 +146,6 @@ window.togglePerfLogs = function() {
     console.log(`Performance logging: ${perfTracker.enabled ? 'ENABLED' : 'DISABLED'}`);
 };
 
-// ============================================================================
-// CACHE AND CONNECTION MANAGEMENT
-// ============================================================================
-
-// Clear cache and reload the app
-function clearCacheAndReload() {
-    // Show loading indicator
-    const statusDot = document.querySelector('.status-dot');
-    if (statusDot) {
-        statusDot.className = 'status-dot connecting';
-    }
-    
-    // Clear localStorage cache (preserve auth)
-    const authData = localStorage.getItem('sb-tzoloagoaysipwxuyldu-auth-token');
-    
-    // Clear all cached data
-    Object.keys(localStorage).forEach(key => {
-        if (!key.includes('auth')) {
-            localStorage.removeItem(key);
-        }
-    });
-    
-    // Clear sessionStorage
-    sessionStorage.clear();
-    
-    // Force reload from server (bypass cache)
-    window.location.reload(true);
-}
-
 // Monitor Supabase connection status
 let connectionCheckInterval = null;
 let lastConnectionCheck = Date.now();
@@ -252,15 +223,6 @@ function startConnectionMonitoring() {
         updateConnectionStatus(false);
     });
 }
-
-// Keyboard shortcut for refresh (Ctrl+Shift+R already works, but also add Ctrl+R override)
-document.addEventListener('keydown', (e) => {
-    // Ctrl+Shift+F5 for force refresh
-    if (e.ctrlKey && e.shiftKey && e.key === 'F5') {
-        e.preventDefault();
-        clearCacheAndReload();
-    }
-});
 
 // ============================================================================
 // MAIN INITIALIZATION
