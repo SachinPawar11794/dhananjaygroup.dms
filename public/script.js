@@ -1449,7 +1449,7 @@ async function openEditSettingsModal(setting) {
     // Populate form with setting data
     document.getElementById("settingsEditId").value = setting.id || "";
     document.getElementById("plant").value = setting.plant || "";
-    document.getElementById("machine").value = setting.machine || "";
+    document.getElementById("machine").value = setting["Machine No."] || "";
     
     // Set hidden fields for part_no and part_name
     const partNoHidden = document.getElementById("part_no");
@@ -1495,9 +1495,9 @@ async function openEditSettingsModal(setting) {
     
     // Set machine (no need to filter parts by machine - parts are filtered by plant only)
     const machineSelect = document.getElementById("machine");
-    if (machineSelect && setting.machine) {
+    if (machineSelect && setting["Machine No."]) {
         setTimeout(() => {
-            machineSelect.value = setting.machine;
+            machineSelect.value = setting["Machine No."];
         }, 100);
     }
     
@@ -2677,7 +2677,7 @@ async function loadSettingsTable(page = 1) {
 
         // Filter settings to only include IoT-enabled machines from WorkCenterMaster
         const filteredData = allData ? allData.filter(setting => {
-            const machine = setting.machine;
+            const machine = setting["Machine No."] || setting.machine;
             if (!machine) return false;
             // If we have valid machines list, filter by it; otherwise show all (for backward compatibility)
             if (validMachines.size > 0) {
@@ -2690,7 +2690,7 @@ async function loadSettingsTable(page = 1) {
         const machineMap = new Map();
         if (filteredData) {
             filteredData.forEach(setting => {
-                const machine = setting.machine;
+                const machine = setting["Machine No."] || setting.machine;
                 if (machine) {
                     if (!machineMap.has(machine) || 
                         (setting.timestamp && machineMap.get(machine).timestamp && 
@@ -2728,7 +2728,7 @@ async function loadSettingsTable(page = 1) {
             if (tableBody) {
                 tableBody.innerHTML = "";
                 data.forEach((setting) => {
-                    const countsKey = buildKey(setting.plant, setting.machine, setting.part_no, setting.operation);
+                const countsKey = buildKey(setting.plant, setting["Machine No."] || setting.machine, setting.part_no, setting.operation);
                     const aggregated = countsMap.get(countsKey);
                     const targetCount = aggregated ? aggregated.target : setting.target_count;
                     const actualCount = aggregated ? aggregated.actual : setting.actual_count;
@@ -2738,7 +2738,7 @@ async function loadSettingsTable(page = 1) {
                         <td>${setting.id || "-"}</td>
                         <td>${formatTimestamp(setting.timestamp)}</td>
                         <td>${setting.plant || "-"}</td>
-                        <td>${setting.machine || "-"}</td>
+                        <td>${setting["Machine No."] || setting.machine || "-"}</td>
                         <td>${setting.part_no || "-"}</td>
                         <td>${setting.part_name || "-"}</td>
                         <td>${setting.operation || "-"}</td>
@@ -2919,7 +2919,7 @@ function filterProcessMasterData(data, searchTerm) {
         const partNo = (item["SAP Code/ Part No."] ?? item["SAP Code/Part No."] ?? item.sap_code ?? "").toString().toLowerCase();
         const partName = (item["Part Name"] ?? item["PartName"] ?? item.part_name ?? "").toString().toLowerCase();
         const operation = (item["Operation"] ?? item.operation ?? "").toString().toLowerCase();
-        const machine = (item["Machine"] ?? item.machine ?? "").toString().toLowerCase();
+        const machine = (item["Machine No."] ?? item["Machine"] ?? item.machine ?? "").toString().toLowerCase();
         const cellName = (item["Cell Name"] ?? item["CellName"] ?? item.cell_name ?? "").toString().toLowerCase();
         const cellLeader = (item["Cell Leader"] ?? item["CellLeader"] ?? item.cell_leader ?? "").toString().toLowerCase();
         const srNo = (item["Sr. No."] ?? item["Sr No."] ?? item.sr_no ?? "").toString().toLowerCase();
@@ -3002,7 +3002,7 @@ async function loadProcessMasterTable(page = 1) {
                         <td>${item["Operation"] ?? item.operation ?? "-"}</td>
                         <td>${item["Cycle Time per Piece"] ?? item["CycleTimePerPiece"] ?? item.cycle_time ?? "-"}</td>
                         <td>${item["No. of Cavities in Tool"] ?? item["NoOfCavitiesInTool"] ?? item.cavities ?? "-"}</td>
-                        <td>${item["Machine"] ?? item.machine ?? "-"}</td>
+                        <td>${item["Machine No."] ?? item["Machine"] ?? item.machine ?? "-"}</td>
                         <td>${item["No. of Workstations"] ?? item["NoOfWorkstations"] ?? item.workstations ?? "-"}</td>
                         <td>${item["Inspection Applicability"] ?? item["InspectionApplicability"] ?? item.inspection ?? "-"}</td>
                         <td>${item["Mandays"] ?? item.mandays ?? "-"}</td>

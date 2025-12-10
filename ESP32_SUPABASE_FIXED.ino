@@ -32,7 +32,7 @@
  // ============================================================================
  // MACHINE CONFIGURATION
  // ============================================================================
- const char* machineNo = "10000707_500_SUMMITO"; // Must match settings.machine
+const char* machineNo = "10000707_500_SUMMITO"; // Must match settings."Machine No."
  const char* plant = "DMCPLI_3001";              // Must match settings.plant
  const long gmtOffsetSeconds = 19800;            // UTC+5:30 for shift/time calculations
  const int daylightOffsetSeconds = 0;
@@ -536,11 +536,12 @@
    }
  
    HTTPClient http;
-   String url = String(supabaseUrl) + "/rest/v1/" + settingsTable +
-                "?select=plant,part_no,part_name,operation,cycle_time,part_count_per_cycle,inspection_applicability,cell_name,cell_leader,workstations,mandays,tool_code,operator_code,loss_reason,target_count,actual_count,machine" +
-                "&plant=eq." + plant +
-                "&machine=eq." + machineNo +
-                "&limit=1";
+  // Note: column has been renamed to "Machine No." in settings. Use URL encoding for spaces.
+  String url = String(supabaseUrl) + "/rest/v1/" + settingsTable +
+               "?select=plant,part_no,part_name,operation,cycle_time,part_count_per_cycle,inspection_applicability,cell_name,cell_leader,workstations,mandays,tool_code,operator_code,loss_reason,target_count,actual_count,%22Machine%20No.%22" +
+               "&plant=eq." + plant +
+               "&%22Machine%20No.%22=eq." + machineNo +
+               "&limit=1";
  
    Serial.print("Fetching settings from: ");
    Serial.println(url);
@@ -583,8 +584,8 @@
    currentSettings.toolCode = row["tool_code"] | "";
    currentSettings.operatorCode = row["operator_code"] | "";
    currentSettings.lossReasons = row["loss_reason"] | "";
-   currentSettings.targetCount = row["target_count"].isNull() ? "0" : String(row["target_count"].as<int>());
-   currentSettings.actualCount = row["actual_count"].isNull() ? "0" : String(row["actual_count"].as<int>());
+  currentSettings.targetCount = row["target_count"].isNull() ? "0" : String(row["target_count"].as<int>());
+  currentSettings.actualCount = row["actual_count"].isNull() ? "0" : String(row["actual_count"].as<int>());
  
    lastDisplayReferenceResponse = millis();
    http.end();

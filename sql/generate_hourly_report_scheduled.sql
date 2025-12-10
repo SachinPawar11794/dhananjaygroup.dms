@@ -1,3 +1,7 @@
+CREATE OR REPLACE FUNCTION public.generate_hourly_report_scheduled()
+RETURNS jsonb
+LANGUAGE plpgsql
+AS $$
 DECLARE
     v_iot_count    integer;
     v_report_count integer;
@@ -365,3 +369,204 @@ EXCEPTION WHEN OTHERS THEN
         'executed_at', now()
     );
 END;
+$$;
+
+-- Recalculate settings counts for the current work day and current shift only,
+-- for a specific Plant + Machine + Part No. + Operation combination.
+-- Target comes from HourlyReport."Hourly Target"
+-- Actual comes from "IoT Database"."Value"
+-- Ensure settings has columns to store the evaluated shift and work day
+ALTER TABLE public.settings
+    ADD COLUMN IF NOT EXISTS current_shift text,
+    ADD COLUMN IF NOT EXISTS current_work_day date;
+
+-- Remove legacy/duplicate count update functions and triggers (if they exist)
+DROP TRIGGER IF EXISTS after_hourlyreport_update_settings ON public."HourlyReport";
+DROP TRIGGER IF EXISTS trig_refresh_settings_counts_from_hourly ON public."HourlyReport";
+DROP TRIGGER IF EXISTS trig_refresh_settings_from_hourly ON public."HourlyReport";
+DROP TRIGGER IF EXISTS trigger_update_settings_counts ON public."HourlyReport";
+DROP TRIGGER IF EXISTS after_iotdata_update_settings ON public."IoT Database";
+DROP FUNCTION IF EXISTS public.trg_hourlyreport_update_settings() CASCADE;
+DROP FUNCTION IF EXISTS public.refresh_settings_counts_from_hourly() CASCADE;
+DROP FUNCTION IF EXISTS public.update_settings_counts() CASCADE;
+DROP FUNCTION IF EXISTS public.recompute_settings_counts(text, text, text, text) CASCADE;
+DROP FUNCTION IF EXISTS public.recalculate_all_settings_counts() CASCADE;
+
+CREATE OR REPLACE FUNCTION public.refresh_settings_counts_current_shift(
+    p_plant     text,
+    p_machine   text,
+    p_part_no   text,
+    p_operation text
+)
+RETURNS jsonb
+LANGUAGE plpgsql
+AS $$
+DECLARE
+    v_work_day      date;
+    v_current_shift text;
+    v_target_count  numeric := 0;
+    v_actual_count  numeric := 0;
+    v_rows_updated  integer := 0;
+BEGIN
+    -- Validate input: must have all key fields
+    IF p_plant IS NULL OR p_machine IS NULL OR p_part_no IS NULL OR p_operation IS NULL THEN
+        RETURN jsonb_build_object(
+            'success', false,
+            'error', 'Missing key fields (plant/machine/part_no/operation)'
+        );
+    END IF;
+
+    -- Determine work day using 07:00 IST cutoff
+    v_work_day := CASE
+                    WHEN (now() AT TIME ZONE 'Asia/Kolkata')::time < time '07:00'
+                      THEN (now() AT TIME ZONE 'Asia/Kolkata')::date - 1
+                    ELSE (now() AT TIME ZONE 'Asia/Kolkata')::date
+                  END;
+
+    -- Determine current shift from ShiftSchedule based on current IST time
+    SELECT ss."Shift" INTO v_current_shift
+    FROM "ShiftSchedule" ss
+    WHERE ss."Plant" = p_plant
+      AND (
+            (split_part(ss."Time", ' - ', 1))::time <= (split_part(ss."Time", ' - ', 2))::time
+            AND (now() AT TIME ZONE 'Asia/Kolkata')::time >= (split_part(ss."Time", ' - ', 1))::time
+            AND (now() AT TIME ZONE 'Asia/Kolkata')::time <  (split_part(ss."Time", ' - ', 2))::time
+          )
+       OR (
+            (split_part(ss."Time", ' - ', 1))::time > (split_part(ss."Time", ' - ', 2))::time
+            AND (
+                  (now() AT TIME ZONE 'Asia/Kolkata')::time >= (split_part(ss."Time", ' - ', 1))::time
+               OR (now() AT TIME ZONE 'Asia/Kolkata')::time <  (split_part(ss."Time", ' - ', 2))::time
+                )
+          )
+    ORDER BY ss."Time"
+    LIMIT 1;
+
+    -- If no shift is found, exit gracefully
+    IF v_current_shift IS NULL THEN
+        RETURN jsonb_build_object(
+            'success', false,
+            'error', 'No current shift found in ShiftSchedule',
+            'work_day', v_work_day,
+            'updated_rows', 0
+        );
+    END IF;
+
+    -- Target from HourlyReport for current work day and shift
+    SELECT COALESCE(SUM(hr."Hourly Target"), 0) INTO v_target_count
+    FROM public."HourlyReport" hr
+    WHERE hr."Plant" = p_plant
+      AND hr."Machine Name" = p_machine
+      AND hr."Part No." = p_part_no
+      AND hr."Operation" = p_operation
+      AND hr."Work Day Date" = v_work_day
+      AND hr."Shift" = v_current_shift
+      AND COALESCE(hr.archived, false) = false;
+
+    -- Actual from IoT Database for current work day and shift
+    SELECT COALESCE(SUM(iot."Value"), 0) INTO v_actual_count
+    FROM public."IoT Database" iot
+    WHERE iot."Plant" = p_plant
+      AND iot."Machine No." = p_machine
+      AND iot."Part No." = p_part_no
+      AND iot."Operation" = p_operation
+      AND iot."Work Day Date" = v_work_day
+      AND iot."Shift" = v_current_shift
+      AND COALESCE(iot.archived, false) = false;
+
+    -- Update matching settings rows
+    UPDATE public.settings s
+    SET target_count     = v_target_count,
+        actual_count     = v_actual_count,
+        current_shift    = v_current_shift,
+        current_work_day = v_work_day,
+        updated_at       = now()
+    WHERE s.plant = p_plant
+      AND s."Machine No." = p_machine
+      AND s.part_no = p_part_no
+      AND s.operation = p_operation;
+
+    GET DIAGNOSTICS v_rows_updated = ROW_COUNT;
+
+    RETURN jsonb_build_object(
+        'success', true,
+        'work_day', v_work_day,
+        'shift', v_current_shift,
+        'updated_rows', COALESCE(v_rows_updated, 0),
+        'target_count', v_target_count,
+        'actual_count', v_actual_count
+    );
+
+EXCEPTION WHEN OTHERS THEN
+    RETURN jsonb_build_object(
+        'success', false,
+        'error', SQLERRM
+    );
+END;
+$$;
+
+-- Trigger helper: call refresh_settings_counts_current_shift() after data changes
+CREATE OR REPLACE FUNCTION public.trg_refresh_settings_counts_current_shift()
+RETURNS trigger
+LANGUAGE plpgsql
+AS $$
+DECLARE
+    v_plant     text;
+    v_machine   text;
+    v_part_no   text;
+    v_operation text;
+BEGIN
+    -- Prevent infinite recursion when this trigger fires due to our own updates
+    IF pg_trigger_depth() > 1 THEN
+        RETURN NULL;
+    END IF;
+
+    -- Determine key fields from the triggering table/row
+    IF TG_TABLE_NAME = 'IoT Database' THEN
+        v_plant     := COALESCE(NEW."Plant", OLD."Plant");
+        v_machine   := COALESCE(NEW."Machine No.", OLD."Machine No.");
+        v_part_no   := COALESCE(NEW."Part No.", OLD."Part No.");
+        v_operation := COALESCE(NEW."Operation", OLD."Operation");
+    ELSIF TG_TABLE_NAME = 'HourlyReport' THEN
+        v_plant     := COALESCE(NEW."Plant", OLD."Plant");
+        v_machine   := COALESCE(NEW."Machine Name", OLD."Machine Name");
+        v_part_no   := COALESCE(NEW."Part No.", OLD."Part No.");
+        v_operation := COALESCE(NEW."Operation", OLD."Operation");
+    ELSIF TG_TABLE_NAME = 'settings' THEN
+        v_plant     := COALESCE(NEW.plant, OLD.plant);
+        v_machine   := COALESCE(NEW."Machine No.", OLD."Machine No.");
+        v_part_no   := COALESCE(NEW.part_no, OLD.part_no);
+        v_operation := COALESCE(NEW.operation, OLD.operation);
+    END IF;
+
+    -- Only proceed when all key fields are present
+    IF v_plant IS NOT NULL AND v_machine IS NOT NULL AND v_part_no IS NOT NULL AND v_operation IS NOT NULL THEN
+        PERFORM public.refresh_settings_counts_current_shift(
+            v_plant,
+            v_machine,
+            v_part_no,
+            v_operation
+        );
+    END IF;
+    RETURN NULL;
+END;
+$$;
+
+-- Hook the refresh to changes in IoT Database, HourlyReport, and settings
+DROP TRIGGER IF EXISTS trg_refresh_settings_counts_iot ON public."IoT Database";
+CREATE TRIGGER trg_refresh_settings_counts_iot
+AFTER INSERT OR UPDATE OR DELETE ON public."IoT Database"
+FOR EACH ROW
+EXECUTE FUNCTION public.trg_refresh_settings_counts_current_shift();
+
+DROP TRIGGER IF EXISTS trg_refresh_settings_counts_hourly ON public."HourlyReport";
+CREATE TRIGGER trg_refresh_settings_counts_hourly
+AFTER INSERT OR UPDATE OR DELETE ON public."HourlyReport"
+FOR EACH ROW
+EXECUTE FUNCTION public.trg_refresh_settings_counts_current_shift();
+
+DROP TRIGGER IF EXISTS trg_refresh_settings_counts_settings ON public.settings;
+CREATE TRIGGER trg_refresh_settings_counts_settings
+AFTER INSERT OR UPDATE OR DELETE ON public.settings
+FOR EACH ROW
+EXECUTE FUNCTION public.trg_refresh_settings_counts_current_shift();
