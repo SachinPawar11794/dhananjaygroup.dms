@@ -292,7 +292,7 @@ BEGIN
     )
     INSERT INTO "HourlyReport" (
         "Plant",
-        "Machine Name",
+        "Machine No.",
         "Sr No",
         "Shift",
         "IoT Date",
@@ -456,7 +456,7 @@ BEGIN
     SELECT COALESCE(SUM(hr."Hourly Target"), 0) INTO v_target_count
     FROM public."HourlyReport" hr
     WHERE hr."Plant" = p_plant
-      AND hr."Machine Name" = p_machine
+      AND hr."Machine No." = p_machine
       AND hr."Part No." = p_part_no
       AND hr."Operation" = p_operation
       AND hr."Work Day Date" = v_work_day
@@ -529,7 +529,7 @@ BEGIN
         v_operation := COALESCE(NEW."Operation", OLD."Operation");
     ELSIF TG_TABLE_NAME = 'HourlyReport' THEN
         v_plant     := COALESCE(NEW."Plant", OLD."Plant");
-        v_machine   := COALESCE(NEW."Machine Name", OLD."Machine Name");
+        v_machine   := COALESCE(NEW."Machine No.", OLD."Machine No.");
         v_part_no   := COALESCE(NEW."Part No.", OLD."Part No.");
         v_operation := COALESCE(NEW."Operation", OLD."Operation");
     ELSIF TG_TABLE_NAME = 'settings' THEN
