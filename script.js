@@ -2269,8 +2269,8 @@ async function loadSettingsTable(page = 1) {
         // Aggregate actual counts from IoT Database filtered by work day + shift
         const { data: iotRows, error: iotErr } = await window.supabase
             .from("IoT Database")
-            .select('Plant,"Machine No.","Part No.","Operation","IoT Date","Shift","Total Produced Qty."')
-            .eq("IoT Date", currentWorkDay);
+            .select('Plant,"Machine No.","Part No.","Operation","Value","Work Day Date","Shift"')
+            .eq("Work Day Date", currentWorkDay);
 
         if (iotErr) {
             console.warn("Error loading IoT aggregates for settings:", iotErr);
@@ -2280,7 +2280,7 @@ async function loadSettingsTable(page = 1) {
             iotRows.forEach(row => {
                 if (currentShift && row?.Shift && row.Shift !== currentShift) return;
                 const key = buildKey(row?.Plant, row?.["Machine No."], row?.["Part No."], row?.Operation);
-                const actual = Number(row?.["Total Produced Qty."]) || 0;
+                const actual = Number(row?.Value) || 0;
 
                 if (!countsMap.has(key)) {
                     countsMap.set(key, { target: 0, actual: 0 });
