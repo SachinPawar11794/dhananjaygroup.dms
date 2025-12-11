@@ -2244,7 +2244,7 @@ async function loadSettingsTable(page = 1) {
         // Aggregate target counts from HourlyReport filtered by work day + shift
         const { data: hourlyRows, error: countsError } = await window.supabase
             .from("HourlyReport")
-            .select('Plant,"Machine Name","Part No.","Operation","Hourly Target","Work Day Date","Shift"')
+            .select('Plant,"Machine No.","Part No.","Operation","Hourly Target","Work Day Date","Shift"')
             .eq("Work Day Date", currentWorkDay);
 
         if (countsError) {
@@ -2255,7 +2255,7 @@ async function loadSettingsTable(page = 1) {
         if (hourlyRows && hourlyRows.length > 0) {
             hourlyRows.forEach(row => {
                 if (currentShift && row?.Shift && row.Shift !== currentShift) return;
-                const key = buildKey(row?.Plant, row?.["Machine Name"], row?.["Part No."], row?.Operation);
+                const key = buildKey(row?.Plant, row?.["Machine No."], row?.["Part No."], row?.Operation);
                 const target = Number(row?.["Hourly Target"]) || 0;
 
                 if (!countsMap.has(key)) {
@@ -4168,7 +4168,7 @@ async function loadHourlyReportTable(page = 1) {
                     
                     row.innerHTML = `
                         <td>${item.Plant || "-"}</td>
-                        <td>${item["Machine Name"] || "-"}</td>
+                        <td>${item["Machine No."] || "-"}</td>
                         <td>${item["Sr No"] || "-"}</td>
                         <td>${item.Shift || "-"}</td>
                         <td>${item["Work Day Date"] ? formatWorkDayDate(item["Work Day Date"]) : "-"}</td>
@@ -4562,7 +4562,7 @@ async function processHourGroupData(iotData, timeGroups, timeGroupMap) {
         
         reportRecords.push({
             "Plant": data.plant,
-            "Machine Name": data.machineNo,
+            "Machine No.": data.machineNo,
             "Sr No": srNo++,
             "Shift": data.shift,
             "IoT Date": formatDateForDB(data.timestamps[0] || now),  // DATE type: YYYY-MM-DD
@@ -4965,7 +4965,7 @@ async function handleWorkCenterFormSubmit() {
         "Work Center": formData.get("workCenter"),
         "Plant": formData.get("plant"),
         "Machine No.": formData.get("machineNo"),
-        "Machine Name": formData.get("machineName"),
+        "Machine No.": formData.get("machineName"),
         "Cell Name": formData.get("cellName"),
         "Cell Leader": formData.get("cellLeader")
     };
@@ -4997,7 +4997,7 @@ function openEditWorkCenterModal(item) {
     form.querySelector('[name="workCenter"]').value = item["Work Center"] || "";
     form.querySelector('[name="plant"]').value = item.Plant || "";
     form.querySelector('[name="machineNo"]').value = item["Machine No."] || "";
-    form.querySelector('[name="machineName"]').value = item["Machine Name"] || "";
+    form.querySelector('[name="machineName"]').value = item["Machine No."] || "";
     form.querySelector('[name="cellName"]').value = item["Cell Name"] || "";
     form.querySelector('[name="cellLeader"]').value = item["Cell Leader"] || "";
     
@@ -5035,7 +5035,7 @@ function filterWorkCenterMasterData(data, searchTerm) {
             (item["Work Center"] && item["Work Center"].toLowerCase().includes(term)) ||
             (item.Plant && item.Plant.toLowerCase().includes(term)) ||
             (item["Machine No."] && item["Machine No."].toLowerCase().includes(term)) ||
-            (item["Machine Name"] && item["Machine Name"].toLowerCase().includes(term)) ||
+            (item["Machine No."] && item["Machine No."].toLowerCase().includes(term)) ||
             (item["Cell Name"] && item["Cell Name"].toLowerCase().includes(term)) ||
             (item["Cell Leader"] && item["Cell Leader"].toLowerCase().includes(term))
         );
@@ -5095,7 +5095,7 @@ async function loadWorkCenterMasterTable(page = 1) {
                             <td>${item["Work Center"] || "-"}</td>
                             <td>${item.Plant || "-"}</td>
                             <td>${item["Machine No."] || "-"}</td>
-                            <td>${item["Machine Name"] || "-"}</td>
+                            <td>${item["Machine No."] || "-"}</td>
                             <td>${item["Cell Name"] || "-"}</td>
                             <td>${item["Cell Leader"] || "-"}</td>
                             <td>
@@ -5140,7 +5140,7 @@ async function loadWorkCenterMasterTable(page = 1) {
                         <td>${item["Work Center"] || "-"}</td>
                         <td>${item.Plant || "-"}</td>
                         <td>${item["Machine No."] || "-"}</td>
-                        <td>${item["Machine Name"] || "-"}</td>
+                        <td>${item["Machine No."] || "-"}</td>
                         <td>${item["Cell Name"] || "-"}</td>
                         <td>${item["Cell Leader"] || "-"}</td>
                         <td>
