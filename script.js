@@ -2044,7 +2044,7 @@ async function handleFormSubmit() {
     const machine = document.getElementById("machine").value;
     const data = {
         plant: document.getElementById("plant").value,
-        machine: machine,
+        "Machine No.": machine,
         part_no: document.getElementById("part_no").value,
         part_name: document.getElementById("part_name").value,
         operation: document.getElementById("operation").value,
@@ -2071,7 +2071,7 @@ async function handleFormSubmit() {
         result = await window.supabase
             .from("settings")
             .upsert(data, {
-                onConflict: 'plant,machine'
+                onConflict: 'plant,"Machine No."'
             });
 
         if (result.error) {
