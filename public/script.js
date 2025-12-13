@@ -5464,6 +5464,9 @@ async function processHourGroupData(iotData, timeGroups, timeGroupMap) {
         
         // Find matching time group from schedule
         for (const timeRange of timeGroups) {
+            // Skip undefined or invalid time ranges
+            if (!timeRange || typeof timeRange !== 'string') continue;
+
             const [startTime, endTime] = timeRange.split(" - ");
             const [startHour, startMin] = startTime.split(":").map(Number);
             const [endHour, endMin] = endTime.split(":").map(Number);
