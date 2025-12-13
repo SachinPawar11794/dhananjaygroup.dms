@@ -4856,7 +4856,7 @@ async function loadHourlyReportTable(page = 1) {
                     } else {
                         // Use Custom Date if available, otherwise use Date field
                         const recordDate = item["Work Day Date"] || item["IoT Date"];
-                        const daysUntilArchive = calculateDaysUntilArchive(recordDate, archiveFrequencyDays);
+                        const daysUntilArchive = recordDate ? calculateDaysUntilArchive(recordDate, archiveFrequencyDays) : null;
                         if (daysUntilArchive !== null) {
                             if (daysUntilArchive === 0) {
                                 archiveStatus = '<span class="status-badge status-active" title="Will be archived soon">Archiving soon</span>';
@@ -6575,6 +6575,11 @@ async function resetUserPassword(email) {
 
 function calculateDaysUntilArchive(timestampOrDate, archiveFrequencyDays) {
     try {
+        // Handle undefined/null timestampOrDate
+        if (!timestampOrDate) {
+            return null;
+        }
+
         let recordDate;
         if (typeof timestampOrDate === 'string') {
             // Try parsing as ISO date first
