@@ -73,19 +73,19 @@ BEGIN
             ib."Work Day Date",
             ib.ts_ist,
             ib.work_day_date AS work_day_date_calc,
-            -- use fallback hour bucket (with spaces for JavaScript compatibility)
-            to_char(date_trunc('hour', ib.ts_ist), 'HH24:00') || ' - ' ||
+            -- use fallback hour bucket (without spaces to match ShiftSchedule format)
+            to_char(date_trunc('hour', ib.ts_ist), 'HH24:00') || '-' ||
             to_char(date_trunc('hour', ib.ts_ist) + interval '1 hour', 'HH24:00') AS time_range_raw,
             COALESCE(ib.slot_shift, ib."Shift", '') AS shift_code,
             -- derive start/end time text
             trim(split_part(
-                to_char(date_trunc('hour', ib.ts_ist), 'HH24:00') || ' - ' ||
+                to_char(date_trunc('hour', ib.ts_ist), 'HH24:00') || '-' ||
                 to_char(date_trunc('hour', ib.ts_ist) + interval '1 hour', 'HH24:00')
-            , ' - ', 1)) AS start_text,
+            , '-', 1)) AS start_text,
             trim(split_part(
-                to_char(date_trunc('hour', ib.ts_ist), 'HH24:00') || ' - ' ||
+                to_char(date_trunc('hour', ib.ts_ist), 'HH24:00') || '-' ||
                 to_char(date_trunc('hour', ib.ts_ist) + interval '1 hour', 'HH24:00')
-            , ' - ', 2)) AS end_text,
+            , '-', 2)) AS end_text,
             COALESCE(ib.slot_available, 60)::numeric AS slot_available_minutes,
             COALESCE(ib."Value", 0) AS val
         FROM iot_enriched ib
@@ -104,8 +104,8 @@ BEGIN
             timezone('Asia/Kolkata', date_trunc('day', iw.ts_ist)) + iw.start_t AS slot_start_ist,
             timezone('Asia/Kolkata', date_trunc('day', iw.ts_ist)) + iw.end_t
                 + CASE WHEN iw.end_t <= iw.start_t THEN interval '1 day' ELSE interval '0' END AS slot_end_ist,
-            -- keep cleaned time range with space for output
-            replace(iw.time_range_raw, '-', ' - ') AS time_range
+            -- keep time range without spaces to match ShiftSchedule format
+            iw.time_range_raw AS time_range
         FROM iot_with_slots iw
     ),
     iot_with_segments AS (

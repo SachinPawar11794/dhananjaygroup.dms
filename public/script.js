@@ -4856,7 +4856,7 @@ async function loadHourlyReportTable(page = 1) {
                     } else {
                         // Use Custom Date if available, otherwise use Date field
                         const recordDate = item["Work Day Date"] || item["IoT Date"];
-                        const daysUntilArchive = calculateDaysUntilArchive(recordDate, archiveFrequencyDays);
+                        const daysUntilArchive = recordDate ? calculateDaysUntilArchive(recordDate, archiveFrequencyDays) : null;
                         if (daysUntilArchive !== null) {
                             if (daysUntilArchive === 0) {
                                 archiveStatus = '<span class="status-badge status-active" title="Will be archived soon">Archiving soon</span>';
@@ -5166,7 +5166,7 @@ async function fetchHourlyReportLastUpdated() {
     }
 }
 
-// Generate Hour Group Production Report (based on schedule time groups)
+// Generate Hour Group Production Report (using Supabase backend function)
 async function generateHourlyReport() {
     const generateBtn = document.getElementById("generateHourlyReportBtn");
     if (generateBtn) {
@@ -5177,119 +5177,23 @@ async function generateHourlyReport() {
     try {
         showToast("Generating hour group production report...", "info");
 
-        // Step 1: Fetch Shift Schedule data to get time groups (sorted by ID)
-        const { data: shiftScheduleData, error: shiftError } = await window.supabase
-            .from("ShiftSchedule")
-            .select("*")
-            .order("id", { ascending: true });
+        // Call backend function to generate report server-side
+        const { data, error } = await window.supabase.rpc('generate_hourly_report_scheduled');
+        if (error) throw error;
 
-        if (shiftError) throw shiftError;
+        const created = data?.reports_created ?? 0;
+        showToast(`Hourly report generated. ${created} records created.`, "success");
 
-        if (!shiftScheduleData || shiftScheduleData.length === 0) {
-            throw new Error("No shift schedule data found. Please configure shift schedule first.");
-        }
+        // Supabase handles all the processing now
 
-        // Build time group maps from schedule
-        const timeGroupMap = {};
-        const timeGroups = [];
+        // Reload table and update dashboard
+        loadHourlyReportTable(1);
+        loadPMSDashboardStats();
 
-        shiftScheduleData.forEach(item => {
-            const timeRange = item.Time;
-            const shift = item.Shift;
-            const availableTime = item["Available Time"] || 0;
-            const plannedDownTime = item["Planned Down Time"] || 0;
-
-            timeGroups.push(timeRange);
-            timeGroupMap[timeRange] = {
-                shift: shift,
-                availableTime: availableTime,
-                plannedDownTime: plannedDownTime
-            };
-        });
-
-        // Step 2: Get archive configuration to determine active period
-        const { data: archiveConfig } = await window.supabase.rpc('get_archive_config');
-        const frequencyDays = archiveConfig?.[0]?.archive_frequency_days || 8;
-        
-        // Step 3: Calculate date range for active IoT data
-        const today = new Date();
-        today.setHours(0, 0, 0, 0);
-        const activePeriodStart = new Date(today);
-        activePeriodStart.setDate(activePeriodStart.getDate() - frequencyDays);
-
-        // Step 4: Fetch NON-ARCHIVED IoT Data within active period
-        const { data: iotData, error: iotError } = await window.supabase
-            .from("IoT Database")
-            .select("*")
-            .gte("Timestamp", activePeriodStart.toISOString())
-            .eq("archived", false)
-            .order("Timestamp", { ascending: true });
-
-        if (iotError) throw iotError;
-
-        if (!iotData || iotData.length === 0) {
-            throw new Error(`No active (non-archived) IoT data found within last ${frequencyDays} days. Cannot generate report.`);
-        }
-
-        showToast(`Processing ${iotData.length} IoT records...`, "info");
-
-        // Step 5: Process data by time groups
-        const reportRecords = await processHourGroupData(iotData, timeGroups, timeGroupMap);
-
-        // Step 6: Insert records into HourlyReport table
-        if (reportRecords.length > 0) {
-            // Get unique dates from report records
-            const reportDates = [...new Set(reportRecords.map(r => r["IoT Date"]))];
-            
-            // Delete existing NON-ARCHIVED records for these dates to avoid duplicates
-            if (reportDates.length > 0) {
-                showToast(`Cleaning up existing records for ${reportDates.length} dates...`, "info");
-                const { error: deleteError } = await window.supabase
-                    .from("HourlyReport")
-                    .delete()
-                    .in("IoT Date", reportDates)
-                    .eq("archived", false);
-                
-                if (deleteError) {
-                    console.warn("Error deleting existing records:", deleteError);
-                }
-            }
-
-            // Batch insert in chunks to avoid timeout
-            showToast(`Inserting ${reportRecords.length} report records...`, "info");
-            const batchSize = 500;
-            const totalBatches = Math.ceil(reportRecords.length / batchSize);
-            
-            for (let i = 0; i < reportRecords.length; i += batchSize) {
-                const batch = reportRecords.slice(i, i + batchSize);
-                const batchNumber = Math.floor(i / batchSize) + 1;
-                
-                if (totalBatches > 1) {
-                    showToast(`Inserting batch ${batchNumber} of ${totalBatches}...`, "info");
-                }
-                
-                const { error: insertError } = await window.supabase
-                    .from("HourlyReport")
-                    .insert(batch);
-
-                if (insertError) {
-                    throw new Error(`Error inserting batch ${batchNumber}: ${insertError.message}`);
-                }
-            }
-
-            showToast(`Hour group production report generated successfully! ${reportRecords.length} records created.`, "success");
-            
-            // Reload table and update dashboard
-            loadHourlyReportTable(1);
-            loadPMSDashboardStats();
-            
-            // Reload settings table
-            const currentPage = document.getElementById("settingsPage")?.getAttribute("data-page") || 
-                               paginationState.settings.currentPage || 1;
-            loadSettingsTable(parseInt(currentPage));
-        } else {
-            showToast("No report records generated. Check your data and shift schedule.", "warning");
-        }
+        // Reload settings table
+        const currentPage = document.getElementById("settingsPage")?.getAttribute("data-page") ||
+                           paginationState.settings.currentPage || 1;
+        loadSettingsTable(parseInt(currentPage));
 
     } catch (error) {
         console.error("Error generating hour group production report:", error);
@@ -6575,6 +6479,11 @@ async function resetUserPassword(email) {
 
 function calculateDaysUntilArchive(timestampOrDate, archiveFrequencyDays) {
     try {
+        // Handle undefined/null timestampOrDate
+        if (!timestampOrDate) {
+            return null;
+        }
+
         let recordDate;
         if (typeof timestampOrDate === 'string') {
             // Try parsing as ISO date first
